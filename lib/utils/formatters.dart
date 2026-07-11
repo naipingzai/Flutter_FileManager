@@ -38,3 +38,12 @@ class Formatters {
     return '0${(mode >> 6) & 7}${(mode >> 3) & 7}${mode & 7}';
   }
 }
+
+  // From FileSize.kt - whether size should be shown in raw bytes
+  static bool isHumanReadableInBytes(int value) => value <= 900;
+
+  // From FileSize.kt - format size in raw bytes with pluralization
+  static String formatInBytes(int value) {
+    return '$value bytes';
+  }
+}
