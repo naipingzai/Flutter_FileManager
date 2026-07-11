@@ -77,4 +77,64 @@ class MimeType {
 
   @override
   int get hashCode => value.hashCode;
+
+  // Port of MimeTypeNameExtensions.kt - get human-readable name
+  static String getName(MimeType mimeType, String extension) {
+    final specialName = _specialPosixTypeNames[mimeType.value];
+    if (specialName != null) return specialName;
+    final icon = _getIconCategory(mimeType);
+    return _iconCategoryNames[icon] ?? 'File${extension.isNotEmpty ? '.$extension' : ''}';
+  }
+
+  static String getBrokenSymbolicLinkName() => 'Broken Symbolic Link';
+
+  static String _getIconCategory(MimeType mimeType) {
+    // Simplified version - returns category string
+    final t = mimeType.type;
+    final full = mimeType.value;
+    if (full == 'application/vnd.android.package-archive') return 'apk';
+    if (full == 'application/pdf') return 'pdf';
+    if (t == 'image') return 'image';
+    if (t == 'video') return 'video';
+    if (t == 'audio') return 'audio';
+    if (t == 'text') return 'text';
+    if (t == 'inode' && full.contains('directory')) return 'directory';
+    return 'generic';
+  }
 }
+
+// Port of specialPosixFileTypeToNameResMap from MimeTypeNameExtensions.kt
+const Map<String, String> _specialPosixTypeNames = {
+  'inode/chardevice': 'Character Device',
+  'inode/blockdevice': 'Block Device',
+  'inode/fifo': 'FIFO Pipe',
+  'inode/symlink': 'Symbolic Link',
+  'inode/socket': 'Socket',
+};
+
+// Port of getNameRes from MimeTypeNameExtensions.kt
+const Map<String, String> _iconCategoryNames = {
+  'apk': 'Android Package',
+  'archive': 'Archive',
+  'audio': 'Audio',
+  'calendar': 'Calendar',
+  'certificate': 'Certificate',
+  'code': 'Source Code',
+  'contact': 'Contact',
+  'directory': 'Directory',
+  'document': 'Document',
+  'ebook': 'E-book',
+  'email': 'Email',
+  'font': 'Font',
+  'generic': 'File',
+  'image': 'Image',
+  'pdf': 'PDF Document',
+  'presentation': 'Presentation',
+  'spreadsheet': 'Spreadsheet',
+  'text': 'Text',
+  'text_plain': 'Plain Text',
+  'video': 'Video',
+  'word': 'Word Document',
+  'excel': 'Excel Spreadsheet',
+  'powerpoint': 'PowerPoint Presentation',
+};
