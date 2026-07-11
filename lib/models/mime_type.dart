@@ -137,4 +137,44 @@ const Map<String, String> _iconCategoryNames = {
   'word': 'Word Document',
   'excel': 'Excel Spreadsheet',
   'powerpoint': 'PowerPoint Presentation',
+
+  // Port of MimeTypeTypeExtensions.kt - type checking properties
+  bool get isApk => this == MimeType.apk || value == 'application/vnd.android.package-archive';
+
+  bool get isSupportedArchive => _supportedArchiveTypes.contains(value);
+
+  bool get isImage => type == 'image';
+  bool get isAudio => type == 'audio';
+  bool get isVideo => type == 'video';
+  bool get isMedia => isAudio || isVideo;
+  bool get isPdf => value == 'application/pdf';
+  bool get isMobi => _mobiTypes.contains(value);
+  bool get isEpub => value == 'application/epub+zip';
+  bool get isEbook => isMobi || isEpub;
+  bool get isCsv => value == 'text/csv' || value == 'text/comma-separated-values';
+  bool get isText => type == 'text';
+};
+
+
+// Port of supportedArchiveMimeTypes from MimeTypeTypeExtensions.kt
+const Set<String> _supportedArchiveTypes = {
+  'application/gzip', 'application/java-archive', 'application/rar',
+  'application/zip', 'application/zstd',
+  'application/vnd.android.package-archive',
+  'application/vnd.debian.binary-package',
+  'application/vnd.ms-cab-compressed', 'application/vnd.rar',
+  'application/x-7z-compressed', 'application/x-bzip2', 'application/x-cab',
+  'application/x-compress', 'application/x-cpio', 'application/x-deb',
+  'application/x-debian-package', 'application/x-gtar',
+  'application/x-gtar-compressed', 'application/x-iso9660-image',
+  'application/x-java-archive', 'application/x-lha', 'application/x-lzma',
+  'application/x-redhat-package-manager', 'application/x-tar',
+  'application/x-ustar', 'application/x-xz',
+};
+
+// Port of mobiMimeTypes from MimeTypeTypeExtensions.kt
+const Set<String> _mobiTypes = {
+  'application/x-mobipocket-ebook',
+  'application/vnd.amazon.ebook',
+  'application/vnd.amazon.mobi8-ebook',
 };
