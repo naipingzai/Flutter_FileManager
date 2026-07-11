@@ -1,39 +1,227 @@
+// Port of file/MimeTypeIcon.kt - complete MIME type to icon mapping
 import 'package:flutter/material.dart';
-import '../services/file_service.dart';
+import '../models/mime_type.dart';
 
-class FileIcons {
-  static IconData iconForEntry(FileEntry e) {
-    if (e.isDirectory) return Icons.folder;
-    final mime = e.mimeType;
-    final ext = e.name.contains('.') ? e.name.split('.').last.toLowerCase() : '';
+enum MimeTypeIcon {
+  apk(Icons.android),
+  archive(Icons.archive),
+  audio(Icons.audio_file),
+  calendar(Icons.calendar_month),
+  certificate(Icons.verified_user),
+  code(Icons.code),
+  contact(Icons.contact_mail),
+  directory(Icons.folder),
+  document(Icons.description),
+  ebook(Icons.menu_book),
+  email(Icons.email),
+  font(Icons.font_download),
+  generic(Icons.insert_drive_file),
+  image(Icons.image),
+  pdf(Icons.picture_as_pdf),
+  presentation(Icons.slideshow),
+  spreadsheet(Icons.table_chart),
+  text(Icons.article),
+  video(Icons.movie),
+  word(Icons.article),
+  excel(Icons.table_chart),
+  powerpoint(Icons.slideshow);
 
-    if (mime.startsWith('image/') || ['jpg','jpeg','png','gif','bmp','svg','webp','ico','tiff','heic','avif'].contains(ext)) return Icons.image;
-    if (mime.startsWith('video/') || ['mp4','avi','mkv','mov','wmv','flv','webm','m4v','3gp'].contains(ext)) return Icons.movie;
-    if (mime.startsWith('audio/') || ['mp3','wav','flac','aac','ogg','wma','m4a','opus'].contains(ext)) return Icons.music_note;
-    if (mime == 'application/pdf' || ext == 'pdf') return Icons.picture_as_pdf;
-    if (mime.contains('zip') || mime.contains('tar') || mime.contains('archive') || mime.contains('compressed') ||
-        ['zip','tar','gz','bz2','xz','7z','rar','zst','lz4','iso','deb','rpm'].contains(ext)) return Icons.archive;
-    if (mime.startsWith('text/') || ['txt','md','json','xml','csv','log','ini','conf','yaml','yml','toml'].contains(ext)) return Icons.description;
-    if (['c','cpp','h','hpp','java','py','rs','go','kt','swift','dart','sh','bat','ps1','js','ts','html','css'].contains(ext)) return Icons.code;
-    if (['doc','docx','odt','rtf'].contains(ext)) return Icons.article;
-    if (['xls','xlsx','ods'].contains(ext)) return Icons.table_chart;
-    if (['ppt','pptx','odp'].contains(ext)) return Icons.slideshow;
-    if (['db','sqlite','sql'].contains(ext)) return Icons.storage;
-    if (['exe','so','dll','bin','apk','appimage'].contains(ext)) return Icons.apps;
-    if (e.isSymlink) return Icons.link;
-    return Icons.insert_drive_file;
-  }
-
-  static Color colorForEntry(FileEntry e) {
-    if (e.isDirectory) return Colors.amber.shade700;
-    final ext = e.name.contains('.') ? e.name.split('.').last.toLowerCase() : '';
-    if (['jpg','jpeg','png','gif','bmp','svg','webp','ico','heic','avif'].contains(ext)) return Colors.green;
-    if (['mp4','avi','mkv','mov','wmv','flv','webm'].contains(ext)) return Colors.purple;
-    if (['mp3','wav','flac','aac','ogg','wma','m4a'].contains(ext)) return Colors.orange;
-    if (ext == 'pdf') return Colors.red;
-    if (['zip','tar','gz','bz2','xz','7z','rar','zst'].contains(ext)) return Colors.brown;
-    if (['c','cpp','h','hpp','java','py','rs','go','kt','swift','dart','sh','js','ts','html','css'].contains(ext)) return Colors.teal;
-    if (['txt','md','json','xml','csv','log','ini','conf','yaml'].contains(ext)) return Colors.blue;
-    return Colors.grey.shade600;
-  }
+  final IconData iconData;
+  const MimeTypeIcon(this.iconData);
 }
+
+// Get icon for a MIME type - port of MimeType.icon extension
+MimeTypeIcon mimeTypeIcon(MimeType mimeType) {
+  return _mimeTypeToIconMap[mimeType] ??
+      _typeToIconMap[mimeType.type] ??
+      (mimeType.suffix != null ? _suffixToIconMap[mimeType.suffix!] : null) ??
+      MimeTypeIcon.generic;
+}
+
+IconData mimeTypeIconData(MimeType mimeType) => mimeTypeIcon(mimeType).iconData;
+
+// Port of mimeTypeToIconMap from MimeTypeIcon.kt
+final Map<MimeType, MimeTypeIcon> _mimeTypeToIconMap = {
+  const MimeType('application/vnd.android.package-archive'): MimeTypeIcon.apk,
+  const MimeType('application/gzip'): MimeTypeIcon.archive,
+  const MimeType('application/java-archive'): MimeTypeIcon.archive,
+  const MimeType('application/mac-binhex40'): MimeTypeIcon.archive,
+  const MimeType('application/rar'): MimeTypeIcon.archive,
+  const MimeType('application/zip'): MimeTypeIcon.archive,
+  const MimeType('application/zstd'): MimeTypeIcon.archive,
+  const MimeType('application/vnd.debian.binary-package'): MimeTypeIcon.archive,
+  const MimeType('application/vnd.ms-cab-compressed'): MimeTypeIcon.archive,
+  const MimeType('application/vnd.rar'): MimeTypeIcon.archive,
+  const MimeType('application/x-7z-compressed'): MimeTypeIcon.archive,
+  const MimeType('application/x-apple-diskimage'): MimeTypeIcon.archive,
+  const MimeType('application/x-bzip'): MimeTypeIcon.archive,
+  const MimeType('application/x-bzip2'): MimeTypeIcon.archive,
+  const MimeType('application/x-compress'): MimeTypeIcon.archive,
+  const MimeType('application/x-cpio'): MimeTypeIcon.archive,
+  const MimeType('application/x-deb'): MimeTypeIcon.archive,
+  const MimeType('application/x-debian-package'): MimeTypeIcon.archive,
+  const MimeType('application/x-gtar'): MimeTypeIcon.archive,
+  const MimeType('application/x-gtar-compressed'): MimeTypeIcon.archive,
+  const MimeType('application/x-gzip'): MimeTypeIcon.archive,
+  const MimeType('application/x-iso9660-image'): MimeTypeIcon.archive,
+  const MimeType('application/x-java-archive'): MimeTypeIcon.archive,
+  const MimeType('application/x-lha'): MimeTypeIcon.archive,
+  const MimeType('application/x-lzh'): MimeTypeIcon.archive,
+  const MimeType('application/x-lzma'): MimeTypeIcon.archive,
+  const MimeType('application/x-lzx'): MimeTypeIcon.archive,
+  const MimeType('application/x-rar-compressed'): MimeTypeIcon.archive,
+  const MimeType('application/x-stuffit'): MimeTypeIcon.archive,
+  const MimeType('application/x-tar'): MimeTypeIcon.archive,
+  const MimeType('application/x-webarchive'): MimeTypeIcon.archive,
+  const MimeType('application/x-webarchive-xml'): MimeTypeIcon.archive,
+  const MimeType('application/x-xz'): MimeTypeIcon.archive,
+  const MimeType('application/ogg'): MimeTypeIcon.audio,
+  const MimeType('application/x-flac'): MimeTypeIcon.audio,
+  const MimeType('text/calendar'): MimeTypeIcon.calendar,
+  const MimeType('text/x-vcalendar'): MimeTypeIcon.calendar,
+  const MimeType('application/pgp-keys'): MimeTypeIcon.certificate,
+  const MimeType('application/pgp-signature'): MimeTypeIcon.certificate,
+  const MimeType('application/x-pkcs12'): MimeTypeIcon.certificate,
+  const MimeType('application/x-pkcs7-certificates'): MimeTypeIcon.certificate,
+  const MimeType('application/x-pkcs7-certreqresp'): MimeTypeIcon.certificate,
+  const MimeType('application/x-pkcs7-crl'): MimeTypeIcon.certificate,
+  const MimeType('application/x-pkcs7-mime'): MimeTypeIcon.certificate,
+  const MimeType('application/x-pkcs7-signature'): MimeTypeIcon.certificate,
+  const MimeType('application/x-x509-ca-cert'): MimeTypeIcon.certificate,
+  const MimeType('application/x-x509-server-cert'): MimeTypeIcon.certificate,
+  const MimeType('application/x-x509-user-cert'): MimeTypeIcon.certificate,
+  const MimeType('application/ecmascript'): MimeTypeIcon.code,
+  const MimeType('application/javascript'): MimeTypeIcon.code,
+  const MimeType('application/json'): MimeTypeIcon.code,
+  const MimeType('application/typescript'): MimeTypeIcon.code,
+  const MimeType('application/xml'): MimeTypeIcon.code,
+  const MimeType('application/yaml'): MimeTypeIcon.code,
+  const MimeType('application/x-csh'): MimeTypeIcon.code,
+  const MimeType('application/x-ecmascript'): MimeTypeIcon.code,
+  const MimeType('application/x-javascript'): MimeTypeIcon.code,
+  const MimeType('application/x-latex'): MimeTypeIcon.code,
+  const MimeType('application/x-perl'): MimeTypeIcon.code,
+  const MimeType('application/x-python'): MimeTypeIcon.code,
+  const MimeType('application/x-ruby'): MimeTypeIcon.code,
+  const MimeType('application/x-sh'): MimeTypeIcon.code,
+  const MimeType('application/x-shellscript'): MimeTypeIcon.code,
+  const MimeType('application/x-texinfo'): MimeTypeIcon.code,
+  const MimeType('application/x-yaml'): MimeTypeIcon.code,
+  const MimeType('text/css'): MimeTypeIcon.code,
+  const MimeType('text/html'): MimeTypeIcon.code,
+  const MimeType('text/ecmascript'): MimeTypeIcon.code,
+  const MimeType('text/javascript'): MimeTypeIcon.code,
+  const MimeType('text/jscript'): MimeTypeIcon.code,
+  const MimeType('text/livescript'): MimeTypeIcon.code,
+  const MimeType('text/xml'): MimeTypeIcon.code,
+  const MimeType('text/x-asm'): MimeTypeIcon.code,
+  const MimeType('text/x-c++hdr'): MimeTypeIcon.code,
+  const MimeType('text/x-c++src'): MimeTypeIcon.code,
+  const MimeType('text/x-chdr'): MimeTypeIcon.code,
+  const MimeType('text/x-csh'): MimeTypeIcon.code,
+  const MimeType('text/x-csharp'): MimeTypeIcon.code,
+  const MimeType('text/x-csrc'): MimeTypeIcon.code,
+  const MimeType('text/x-dsrc'): MimeTypeIcon.code,
+  const MimeType('text/x-ecmascript'): MimeTypeIcon.code,
+  const MimeType('text/x-haskell'): MimeTypeIcon.code,
+  const MimeType('text/x-java'): MimeTypeIcon.code,
+  const MimeType('text/x-javascript'): MimeTypeIcon.code,
+  const MimeType('text/x-literate-haskell'): MimeTypeIcon.code,
+  const MimeType('text/x-pascal'): MimeTypeIcon.code,
+  const MimeType('text/x-perl'): MimeTypeIcon.code,
+  const MimeType('text/x-python'): MimeTypeIcon.code,
+  const MimeType('text/x-ruby'): MimeTypeIcon.code,
+  const MimeType('text/x-shellscript'): MimeTypeIcon.code,
+  const MimeType('text/x-tcl'): MimeTypeIcon.code,
+  const MimeType('text/x-tex'): MimeTypeIcon.code,
+  const MimeType('text/x-yaml'): MimeTypeIcon.code,
+  const MimeType('text/vcard'): MimeTypeIcon.contact,
+  const MimeType('text/x-vcard'): MimeTypeIcon.contact,
+  const MimeType('inode/directory'): MimeTypeIcon.directory,
+  const MimeType('application/rtf'): MimeTypeIcon.document,
+  const MimeType('application/vnd.kde.kword'): MimeTypeIcon.document,
+  const MimeType('application/vnd.oasis.opendocument.text'): MimeTypeIcon.document,
+  const MimeType('application/vnd.oasis.opendocument.text-master'): MimeTypeIcon.document,
+  const MimeType('application/vnd.oasis.opendocument.text-template'): MimeTypeIcon.document,
+  const MimeType('application/vnd.oasis.opendocument.text-web'): MimeTypeIcon.document,
+  const MimeType('application/vnd.stardivision.writer'): MimeTypeIcon.document,
+  const MimeType('application/vnd.stardivision.writer-global'): MimeTypeIcon.document,
+  const MimeType('application/vnd.sun.xml.writer'): MimeTypeIcon.document,
+  const MimeType('application/vnd.sun.xml.writer.global'): MimeTypeIcon.document,
+  const MimeType('application/vnd.sun.xml.writer.template'): MimeTypeIcon.document,
+  const MimeType('application/x-abiword'): MimeTypeIcon.document,
+  const MimeType('application/x-kword'): MimeTypeIcon.document,
+  const MimeType('text/rtf'): MimeTypeIcon.document,
+  const MimeType('application/epub+zip'): MimeTypeIcon.ebook,
+  const MimeType('application/vnd.amazon.ebook'): MimeTypeIcon.ebook,
+  const MimeType('application/vnd.amazon.mobi8-ebook'): MimeTypeIcon.ebook,
+  const MimeType('application/vnd.comicbook-rar'): MimeTypeIcon.ebook,
+  const MimeType('application/vnd.comicbook+zip'): MimeTypeIcon.ebook,
+  const MimeType('application/x-cbr'): MimeTypeIcon.ebook,
+  const MimeType('application/x-cbz'): MimeTypeIcon.ebook,
+  const MimeType('application/x-ibooks+zip'): MimeTypeIcon.ebook,
+  const MimeType('application/x-mobipocket-ebook'): MimeTypeIcon.ebook,
+  const MimeType('application/vnd.ms-outlook'): MimeTypeIcon.email,
+  const MimeType('message/rfc822'): MimeTypeIcon.email,
+  const MimeType('application/font-cff'): MimeTypeIcon.font,
+  const MimeType('application/font-off'): MimeTypeIcon.font,
+  const MimeType('application/font-sfnt'): MimeTypeIcon.font,
+  const MimeType('application/font-ttf'): MimeTypeIcon.font,
+  const MimeType('application/font-woff'): MimeTypeIcon.font,
+  const MimeType('application/vnd.ms-fontobject'): MimeTypeIcon.font,
+  const MimeType('application/vnd.ms-opentype'): MimeTypeIcon.font,
+  const MimeType('application/x-font'): MimeTypeIcon.font,
+  const MimeType('application/x-font-ttf'): MimeTypeIcon.font,
+  const MimeType('application/x-font-woff'): MimeTypeIcon.font,
+  const MimeType('application/vnd.oasis.opendocument.graphics'): MimeTypeIcon.image,
+  const MimeType('application/vnd.oasis.opendocument.graphics-template'): MimeTypeIcon.image,
+  const MimeType('application/vnd.oasis.opendocument.image'): MimeTypeIcon.image,
+  const MimeType('application/vnd.stardivision.draw'): MimeTypeIcon.image,
+  const MimeType('application/vnd.sun.xml.draw'): MimeTypeIcon.image,
+  const MimeType('application/vnd.sun.xml.draw.template'): MimeTypeIcon.image,
+  const MimeType('application/vnd.visio'): MimeTypeIcon.image,
+  const MimeType('application/pdf'): MimeTypeIcon.pdf,
+  const MimeType('application/vnd.kde.kpresenter'): MimeTypeIcon.presentation,
+  const MimeType('application/vnd.oasis.opendocument.presentation'): MimeTypeIcon.presentation,
+  const MimeType('application/vnd.oasis.opendocument.presentation-template'): MimeTypeIcon.presentation,
+  const MimeType('application/vnd.stardivision.impress'): MimeTypeIcon.presentation,
+  const MimeType('application/vnd.sun.xml.impress'): MimeTypeIcon.presentation,
+  const MimeType('application/vnd.sun.xml.impress.template'): MimeTypeIcon.presentation,
+  const MimeType('application/x-kpresenter'): MimeTypeIcon.presentation,
+  const MimeType('application/vnd.kde.kspread'): MimeTypeIcon.spreadsheet,
+  const MimeType('application/vnd.oasis.opendocument.spreadsheet'): MimeTypeIcon.spreadsheet,
+  const MimeType('application/vnd.oasis.opendocument.spreadsheet-template'): MimeTypeIcon.spreadsheet,
+  const MimeType('application/vnd.stardivision.calc'): MimeTypeIcon.spreadsheet,
+  const MimeType('application/vnd.sun.xml.calc'): MimeTypeIcon.spreadsheet,
+  const MimeType('application/vnd.sun.xml.calc.template'): MimeTypeIcon.spreadsheet,
+  const MimeType('application/x-kspread'): MimeTypeIcon.spreadsheet,
+  const MimeType('application/vnd.adobe.flash.movie'): MimeTypeIcon.video,
+  const MimeType('application/x-quicktimeplayer'): MimeTypeIcon.video,
+  const MimeType('application/x-shockwave-flash'): MimeTypeIcon.video,
+  const MimeType('application/msword'): MimeTypeIcon.word,
+  const MimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.document'): MimeTypeIcon.word,
+  const MimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.template'): MimeTypeIcon.word,
+  const MimeType('application/vnd.ms-excel'): MimeTypeIcon.excel,
+  const MimeType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): MimeTypeIcon.excel,
+  const MimeType('application/vnd.openxmlformats-officedocument.spreadsheetml.template'): MimeTypeIcon.excel,
+  const MimeType('application/vnd.ms-powerpoint'): MimeTypeIcon.powerpoint,
+  const MimeType('application/vnd.openxmlformats-officedocument.presentationml.presentation'): MimeTypeIcon.powerpoint,
+  const MimeType('application/vnd.openxmlformats-officedocument.presentationml.slideshow'): MimeTypeIcon.powerpoint,
+  const MimeType('application/vnd.openxmlformats-officedocument.presentationml.template'): MimeTypeIcon.powerpoint,
+};
+
+// Port of typeToIconMap from MimeTypeIcon.kt
+final Map<String, MimeTypeIcon> _typeToIconMap = {
+  'audio': MimeTypeIcon.audio,
+  'font': MimeTypeIcon.font,
+  'image': MimeTypeIcon.image,
+  'text': MimeTypeIcon.text,
+  'video': MimeTypeIcon.video,
+};
+
+// Port of suffixToIconMap from MimeTypeIcon.kt
+final Map<String, MimeTypeIcon> _suffixToIconMap = {
+  'json': MimeTypeIcon.code,
+  'xml': MimeTypeIcon.code,
+  'zip': MimeTypeIcon.archive,
+};
