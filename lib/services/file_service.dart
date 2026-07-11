@@ -458,4 +458,19 @@ class FileService {
 
   static String joinPath(String parent, String child) =>
       parent.endsWith('/') ? '$parent$child' : '$parent/$child';
+
+  // Port of JavaFile.kt - helpers wrapping java.io.File statics
+  static bool javaFileIsDirectory(String path) {
+    return FileService().isDirectory(path);
+  }
+
+  static int javaFileGetFreeSpace(String path) {
+    final usage = FileService().getDiskUsage(path);
+    return usage?.freeSpace ?? 0;
+  }
+
+  static int javaFileGetTotalSpace(String path) {
+    final usage = FileService().getDiskUsage(path);
+    return usage?.totalSpace ?? 0;
+  }
 }
