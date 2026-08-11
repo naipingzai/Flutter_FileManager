@@ -1,5 +1,5 @@
 /*
- * AdvanceFileManager - C++ Native File Operations
+ * FlutterFileManager - C++ Native File Operations
  * Core file system operations using POSIX APIs
  */
 

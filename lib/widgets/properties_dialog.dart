@@ -20,7 +20,13 @@ class PropertiesDialog extends StatelessWidget {
             color: entry.isDirectory ? Colors.amber : theme.colorScheme.primary,
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(entry.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
+          Expanded(
+            child: Text(
+              entry.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
       content: SizedBox(
@@ -32,14 +38,28 @@ class PropertiesDialog extends StatelessWidget {
             children: [
               _section('基本信息', [
                 _row('路径', entry.path),
-                _row('类型', entry.isDirectory ? '目录' : entry.isSymlink ? '符号链接' : entry.mimeType.isNotEmpty ? entry.mimeType : '文件'),
+                _row(
+                  '类型',
+                  entry.isDirectory
+                      ? '目录'
+                      : entry.isSymlink
+                      ? '符号链接'
+                      : entry.mimeType.isNotEmpty
+                      ? entry.mimeType
+                      : '文件',
+                ),
                 _row('大小', entry.sizeFormatted),
                 _row('修改时间', entry.modifiedFormatted),
-                if (entry.createdTime > 0) _row('创建时间', Formatters.formatDate(entry.createdTime)),
-                if (entry.accessTime > 0) _row('访问时间', Formatters.formatDate(entry.accessTime)),
+                if (entry.createdTime > 0)
+                  _row('创建时间', Formatters.formatDate(entry.createdTime)),
+                if (entry.accessTime > 0)
+                  _row('访问时间', Formatters.formatDate(entry.accessTime)),
               ]),
               _section('权限', [
-                _row('权限', '${entry.permissionsFormatted} (${entry.octalPermissions})'),
+                _row(
+                  '权限',
+                  '${entry.permissionsFormatted} (${entry.octalPermissions})',
+                ),
                 _row('所有者', '${entry.ownerName} (${entry.uid})'),
                 _row('组', '${entry.groupName} (${entry.gid})'),
                 _row('可读', entry.isReadable ? '是' : '否'),
@@ -47,14 +67,16 @@ class PropertiesDialog extends StatelessWidget {
                 _row('可执行', entry.isExecutable ? '是' : '否'),
               ]),
               if (entry.isSymlink)
-                _section('符号链接', [
-                  _row('目标', entry.symlinkTarget),
-                ]),
+                _section('符号链接', [_row('目标', entry.symlinkTarget)]),
               if (entry.isFile) ...[
-                const Divider(),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text('校验和', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                  child: Text(
+                    '校验和',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 FutureBuilder<FileHash?>(
                   future: Future(() => state.computeHash(entry.path)),
@@ -86,7 +108,10 @@ class PropertiesDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
       ],
     );
   }
@@ -95,7 +120,10 @@ class PropertiesDialog extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
         const SizedBox(height: 4),
         ...children,
         const Divider(),
@@ -109,8 +137,16 @@ class PropertiesDialog extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 80, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13))),
-          Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 13))),
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(value, style: const TextStyle(fontSize: 13)),
+          ),
         ],
       ),
     );

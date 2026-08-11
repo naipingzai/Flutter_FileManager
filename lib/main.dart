@@ -10,11 +10,11 @@ const _permissionChannel = MethodChannel(
 );
 
 void main() {
-  runApp(const AdvanceFileManagerApp());
+  runApp(const FlutterFileManagerApp());
 }
 
-class AdvanceFileManagerApp extends StatelessWidget {
-  const AdvanceFileManagerApp({super.key});
+class FlutterFileManagerApp extends StatelessWidget {
+  const FlutterFileManagerApp({super.key});
 
   @override
   Widget build(BuildContext context) {

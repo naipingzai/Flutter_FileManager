@@ -89,7 +89,10 @@ class FileManagerState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final entries = _fileService.listDirectory(tab.currentPath, showHidden: tab.showHidden);
+      final entries = _fileService.listDirectory(
+        tab.currentPath,
+        showHidden: tab.showHidden,
+      );
       _sortEntries(entries, tab.sortMode, tab.sortAscending);
       tab.entries = entries;
       tab.loading = false;
@@ -119,7 +122,8 @@ class FileManagerState extends ChangeNotifier {
           break;
         case SortMode.type:
           cmp = a.mimeType.compareTo(b.mimeType);
-          if (cmp == 0) cmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          if (cmp == 0)
+            cmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
           break;
       }
       return ascending ? cmp : -cmp;
@@ -158,11 +162,6 @@ class FileManagerState extends ChangeNotifier {
       tab.selectedPaths.clear();
       loadCurrentTab();
     }
-  }
-
-  void goUp() {
-    final parent = FileService.getParentPath(currentTab.currentPath);
-    if (parent != currentTab.currentPath) navigateTo(parent);
   }
 
   void toggleHidden() {
@@ -230,9 +229,11 @@ class FileManagerState extends ChangeNotifier {
   List<FileEntry> get filteredEntries {
     final tab = currentTab;
     if (tab.isSearching && tab.searchQuery.isNotEmpty) {
-      return tab.entries.where((e) =>
-        e.name.toLowerCase().contains(tab.searchQuery.toLowerCase())
-      ).toList();
+      return tab.entries
+          .where(
+            (e) => e.name.toLowerCase().contains(tab.searchQuery.toLowerCase()),
+          )
+          .toList();
     }
     return tab.entries;
   }
@@ -256,16 +257,20 @@ class FileManagerState extends ChangeNotifier {
   String? createDirectory(String path) => _fileService.createDirectory(path);
   String? createFile(String path) => _fileService.createFile(path);
   String? deleteFile(String path) => _fileService.deleteFile(path);
-  String? rename(String oldPath, String newPath) => _fileService.rename(oldPath, newPath);
+  String? rename(String oldPath, String newPath) =>
+      _fileService.rename(oldPath, newPath);
   String? copyFile(String src, String dst) => _fileService.copyFile(src, dst);
   String? moveFile(String src, String dst) => _fileService.moveFile(src, dst);
   bool exists(String path) => _fileService.exists(path);
   FileEntry? getFileInfo(String path) => _fileService.getFileInfo(path);
   FileHash? computeHash(String path) => _fileService.computeHash(path);
   DiskUsage? getDiskUsage(String path) => _fileService.getDiskUsage(path);
-  List<FileEntry> searchFiles(String dir, String pattern) => _fileService.searchFiles(dir, pattern);
-  List<DuplicateGroup> findDuplicates(String dir) => _fileService.findDuplicates(dir);
-  List<FileEntry> findEmptyFiles(String dir) => _fileService.findEmptyFiles(dir);
+  List<FileEntry> searchFiles(String dir, String pattern) =>
+      _fileService.searchFiles(dir, pattern);
+  List<DuplicateGroup> findDuplicates(String dir) =>
+      _fileService.findDuplicates(dir);
+  List<FileEntry> findEmptyFiles(String dir) =>
+      _fileService.findEmptyFiles(dir);
 }
 
 enum DrawerSection { storage, bookmarks, tools, settings }

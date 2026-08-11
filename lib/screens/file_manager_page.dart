@@ -60,10 +60,12 @@ class _FileManagerView extends StatelessWidget {
       body: Column(
         children: [
           // Tab bar
-          if (state.tabs.length > 1 || true)
-            _buildTabBar(context, state),
+          if (state.tabs.length > 1 || true) _buildTabBar(context, state),
           // Breadcrumb
-          BreadcrumbBar(currentPath: tab.currentPath, onNavigate: state.navigateTo),
+          BreadcrumbBar(
+            currentPath: tab.currentPath,
+            onNavigate: state.navigateTo,
+          ),
           const Divider(height: 1),
           // Content
           Expanded(child: _buildContent(context, state, entries)),
@@ -71,64 +73,149 @@ class _FileManagerView extends StatelessWidget {
           _buildStatusBar(context, state, entries),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateDialog(context, state),
-        child: const Icon(Icons.add),
-      ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, FileManagerState state) {
+  PreferredSizeWidget _buildAppBar(
+    BuildContext context,
+    FileManagerState state,
+  ) {
     final tab = state.currentTab;
     return AppBar(
       title: tab.isSearching
           ? TextField(
               autofocus: true,
-              decoration: const InputDecoration(hintText: '搜索文件...', border: InputBorder.none),
+              decoration: const InputDecoration(
+                hintText: '搜索文件...',
+                border: InputBorder.none,
+              ),
               onChanged: state.setSearchQuery,
             )
           : Text(FileService.getFileName(tab.currentPath)),
-      leading: Builder(builder: (ctx) => IconButton(icon: const Icon(Icons.menu), onPressed: () => Scaffold.of(ctx).openDrawer())),
+      leading: Builder(
+        builder: (ctx) => IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => Scaffold.of(ctx).openDrawer(),
+        ),
+      ),
       actions: [
         if (tab.selectedPaths.isNotEmpty) ...[
-          Center(child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text('${tab.selectedPaths.length} 已选', style: const TextStyle(fontSize: 14)),
-          )),
-          IconButton(icon: const Icon(Icons.select_all), onPressed: state.selectAll, tooltip: '全选'),
-          IconButton(icon: const Icon(Icons.deselect), onPressed: state.clearSelection, tooltip: '取消选择'),
-          IconButton(icon: const Icon(Icons.delete), onPressed: () => _deleteSelected(context, state), tooltip: '删除'),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                '${tab.selectedPaths.length} 已选',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.select_all),
+            onPressed: state.selectAll,
+            tooltip: '全选',
+          ),
+          IconButton(
+            icon: const Icon(Icons.deselect),
+            onPressed: state.clearSelection,
+            tooltip: '取消选择',
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () => _deleteSelected(context, state),
+            tooltip: '删除',
+          ),
         ] else ...[
-          IconButton(icon: const Icon(Icons.arrow_back), onPressed: state.goBack),
-          IconButton(icon: const Icon(Icons.arrow_forward), onPressed: state.goForward),
-          IconButton(icon: const Icon(Icons.arrow_upward), onPressed: state.goUp),
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: state.goBack,
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward),
+            onPressed: state.goForward,
+          ),
           IconButton(
             icon: Icon(tab.isSearching ? Icons.close : Icons.search),
             onPressed: () {
-              if (tab.isSearching) state.toggleSearch();
-              else Navigator.push(context, MaterialPageRoute(builder: (_) => SearchPage(state: state)));
+              if (tab.isSearching)
+                state.toggleSearch();
+              else
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => SearchPage(state: state)),
+                );
             },
           ),
           IconButton(
-            icon: Icon(tab.showHidden ? Icons.visibility : Icons.visibility_off),
+            icon: Icon(
+              tab.showHidden ? Icons.visibility : Icons.visibility_off,
+            ),
             tooltip: tab.showHidden ? '隐藏隐藏文件' : '显示隐藏文件',
             onPressed: state.toggleHidden,
           ),
           PopupMenuButton<String>(
+            icon: const Icon(Icons.menu),
             onSelected: (v) => _handleMenu(context, state, v),
             itemBuilder: (_) => [
-              CheckedPopupMenuItem(value: 'sort_name', checked: tab.sortMode == SortMode.name, child: const Text('按名称排序')),
-              CheckedPopupMenuItem(value: 'sort_size', checked: tab.sortMode == SortMode.size, child: const Text('按大小排序')),
-              CheckedPopupMenuItem(value: 'sort_modified', checked: tab.sortMode == SortMode.modified, child: const Text('按修改时间排序')),
-              CheckedPopupMenuItem(value: 'sort_type', checked: tab.sortMode == SortMode.type, child: const Text('按类型排序')),
+              CheckedPopupMenuItem(
+                value: 'sort_name',
+                checked: tab.sortMode == SortMode.name,
+                child: const Text('按名称排序'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'sort_size',
+                checked: tab.sortMode == SortMode.size,
+                child: const Text('按大小排序'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'sort_modified',
+                checked: tab.sortMode == SortMode.modified,
+                child: const Text('按修改时间排序'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'sort_type',
+                checked: tab.sortMode == SortMode.type,
+                child: const Text('按类型排序'),
+              ),
               const PopupMenuDivider(),
-              CheckedPopupMenuItem(value: 'view_list', checked: tab.viewMode == ViewMode.list, child: const Text('列表视图')),
-              CheckedPopupMenuItem(value: 'view_grid', checked: tab.viewMode == ViewMode.grid, child: const Text('网格视图')),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'select_all', child: Text('全选')),
-              const PopupMenuItem(value: 'new_tab', child: Text('新标签页')),
-              const PopupMenuItem(value: 'bookmark', child: Text('添加书签')),
-              const PopupMenuItem(value: 'refresh', child: Text('刷新')),
+              CheckedPopupMenuItem(
+                value: 'view_list',
+                checked: tab.viewMode == ViewMode.list,
+                child: const Text('列表视图'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'view_grid',
+                checked: tab.viewMode == ViewMode.grid,
+                child: const Text('网格视图'),
+              ),
+            ],
+          ),
+          PopupMenuButton<String>(
+            onSelected: (v) => _handleMenu(context, state, v),
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'new_folder',
+                child: Row(children: [SizedBox(width: 12), Text('新建文件夹')]),
+              ),
+              const PopupMenuItem(
+                value: 'new_file',
+                child: Row(children: [SizedBox(width: 12), Text('新建文件')]),
+              ),
+              const PopupMenuItem(
+                value: 'select_all',
+                child: Row(children: [SizedBox(width: 12), Text('全选')]),
+              ),
+              const PopupMenuItem(
+                value: 'new_tab',
+                child: Row(children: [SizedBox(width: 12), Text('新标签页')]),
+              ),
+              const PopupMenuItem(
+                value: 'bookmark',
+                child: Row(children: [SizedBox(width: 12), Text('添加书签')]),
+              ),
+              const PopupMenuItem(
+                value: 'refresh',
+                child: Row(children: [SizedBox(width: 12), Text('刷新')]),
+              ),
             ],
           ),
         ],
@@ -143,39 +230,73 @@ class _FileManagerView extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: BoxDecoration(color: theme.colorScheme.primaryContainer),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Icon(Icons.folder_special, size: 48, color: theme.colorScheme.onPrimaryContainer),
-                const SizedBox(height: 8),
-                Text('Flutter File Manager', style: TextStyle(
+                Icon(
+                  Icons.folder_special,
+                  size: 48,
                   color: theme.colorScheme.onPrimaryContainer,
-                  fontSize: 18, fontWeight: FontWeight.bold,
-                )),
-                Text('Flutter + C++ 版本', style: TextStyle(color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7))),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Flutter File Manager',
+                  style: TextStyle(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Flutter + C++ 版本',
+                  style: TextStyle(
+                    color: theme.colorScheme.onPrimaryContainer.withValues(
+                      alpha: 0.7,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           // Storage
-          _drawerItem(context, state, Icons.storage, '存储', DrawerSection.storage, () {
-            state.setDrawerSection(DrawerSection.storage);
-            Navigator.pop(context);
-          }),
+          _drawerItem(
+            context,
+            state,
+            Icons.storage,
+            '存储',
+            DrawerSection.storage,
+            () {
+              state.setDrawerSection(DrawerSection.storage);
+              Navigator.pop(context);
+            },
+          ),
           FutureBuilder<DiskUsage?>(
             future: Future(() => state.getDiskUsage('/')),
             builder: (ctx, snap) {
               if (!snap.hasData || snap.data == null) return const SizedBox();
               final d = snap.data!;
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    LinearProgressIndicator(value: d.percent / 100, backgroundColor: theme.colorScheme.surfaceContainerHighest),
+                    LinearProgressIndicator(
+                      value: d.percent / 100,
+                      backgroundColor:
+                          theme.colorScheme.surfaceContainerHighest,
+                    ),
                     const SizedBox(height: 4),
-                    Text('${d.usedFormatted} / ${d.totalFormatted} (${d.percent.toStringAsFixed(1)}%)', style: const TextStyle(fontSize: 12)),
+                    Text(
+                      '${d.usedFormatted} / ${d.totalFormatted} (${d.percent.toStringAsFixed(1)}%)',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
               );
@@ -185,74 +306,186 @@ class _FileManagerView extends StatelessWidget {
           // Quick access
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('快速访问', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+            child: Text(
+              '快速访问',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
           ),
-          _quickAccessItem(context, state, Icons.home, '主目录', _platformHomeDir()),
-          _quickAccessItem(context, state, Icons.folder, '根目录', _platformRootDir()),
+          _quickAccessItem(
+            context,
+            state,
+            Icons.home,
+            '主目录',
+            _platformHomeDir(),
+          ),
+          _quickAccessItem(
+            context,
+            state,
+            Icons.folder,
+            '根目录',
+            _platformRootDir(),
+          ),
           if (_platformIsLinux()) ...[
-            _quickAccessItem(context, state, Icons.download, '下载', '${_platformHomeDir()}/Downloads'),
-            _quickAccessItem(context, state, Icons.description, '文档', '${_platformHomeDir()}/Documents'),
-            _quickAccessItem(context, state, Icons.image, '图片', '${_platformHomeDir()}/Pictures'),
-            _quickAccessItem(context, state, Icons.music_note, '音乐', '${_platformHomeDir()}/Music'),
-            _quickAccessItem(context, state, Icons.movie, '视频', '${_platformHomeDir()}/Videos'),
+            _quickAccessItem(
+              context,
+              state,
+              Icons.download,
+              '下载',
+              '${_platformHomeDir()}/Downloads',
+            ),
+            _quickAccessItem(
+              context,
+              state,
+              Icons.description,
+              '文档',
+              '${_platformHomeDir()}/Documents',
+            ),
+            _quickAccessItem(
+              context,
+              state,
+              Icons.image,
+              '图片',
+              '${_platformHomeDir()}/Pictures',
+            ),
+            _quickAccessItem(
+              context,
+              state,
+              Icons.music_note,
+              '音乐',
+              '${_platformHomeDir()}/Music',
+            ),
+            _quickAccessItem(
+              context,
+              state,
+              Icons.movie,
+              '视频',
+              '${_platformHomeDir()}/Videos',
+            ),
           ],
           const Divider(),
           // Bookmarks
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('书签', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+            child: Text(
+              '书签',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
           ),
           if (state.bookmarks.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text('暂无书签', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              child: Text(
+                '暂无书签',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
             ),
-          ...state.bookmarks.asMap().entries.map((e) => ListTile(
-            leading: const Icon(Icons.bookmark, size: 20),
-            title: Text(e.value.name, style: const TextStyle(fontSize: 14)),
-            dense: true,
-            onTap: () { state.navigateTo(e.value.path); Navigator.pop(context); },
-            trailing: IconButton(
-              icon: const Icon(Icons.close, size: 16),
-              onPressed: () => state.removeBookmark(e.key),
+          ...state.bookmarks.asMap().entries.map(
+            (e) => ListTile(
+              leading: const Icon(Icons.bookmark, size: 20),
+              title: Text(e.value.name, style: const TextStyle(fontSize: 14)),
+              // dense: true,
+              onTap: () {
+                state.navigateTo(e.value.path);
+                Navigator.pop(context);
+              },
+              trailing: IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                onPressed: () => state.removeBookmark(e.key),
+              ),
             ),
-          )),
+          ),
           const Divider(),
-          // Tools
-          _drawerItem(context, state, Icons.settings, '设置', DrawerSection.settings, () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsPage(state: state)));
-          }),
-          _drawerItem(context, state, Icons.info, '关于', DrawerSection.settings, () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()));
-          }),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              '更多',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          _drawerItem(
+            context,
+            state,
+            Icons.settings,
+            '设置',
+            DrawerSection.settings,
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => SettingsPage(state: state)),
+              );
+            },
+          ),
+          _drawerItem(
+            context,
+            state,
+            Icons.info,
+            '关于',
+            DrawerSection.settings,
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AboutPage()),
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget _drawerItem(BuildContext ctx, FileManagerState state, IconData icon, String title,
-      DrawerSection section, VoidCallback onTap) {
+  Widget _drawerItem(
+    BuildContext ctx,
+    FileManagerState state,
+    IconData icon,
+    String title,
+    DrawerSection section,
+    VoidCallback onTap,
+  ) {
     final theme = Theme.of(ctx);
+
     final selected = state.drawerSection == section;
     return ListTile(
-      leading: Icon(icon, color: selected ? theme.colorScheme.primary : null),
-      title: Text(title, style: TextStyle(
-        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+      leading: Icon(
+        icon,
+        size: 20,
         color: selected ? theme.colorScheme.primary : null,
-      )),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          color: selected ? theme.colorScheme.primary : null,
+        ),
+      ),
       selected: selected,
       onTap: onTap,
     );
   }
 
-  Widget _quickAccessItem(BuildContext ctx, FileManagerState state, IconData icon, String title, String path) {
+  Widget _quickAccessItem(
+    BuildContext ctx,
+    FileManagerState state,
+    IconData icon,
+    String title,
+    String path,
+  ) {
     return ListTile(
       leading: Icon(icon, size: 20),
       title: Text(title, style: const TextStyle(fontSize: 14)),
-      dense: true,
-      onTap: () { state.navigateTo(path); Navigator.pop(ctx); },
+      // dense: true,
+      onTap: () {
+        state.navigateTo(path);
+        Navigator.pop(ctx);
+      },
     );
   }
 
@@ -276,7 +509,9 @@ class _FileManagerView extends StatelessWidget {
                     decoration: BoxDecoration(
                       border: Border(
                         bottom: BorderSide(
-                          color: isCurrent ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                          color: isCurrent
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
                           width: 2,
                         ),
                       ),
@@ -288,7 +523,9 @@ class _FileManagerView extends StatelessWidget {
                           FileService.getFileName(t.currentPath),
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isCurrent
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                           ),
                         ),
                         if (state.tabs.length > 1)
@@ -319,34 +556,55 @@ class _FileManagerView extends StatelessWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, FileManagerState state, List<FileEntry> entries) {
+  Widget _buildContent(
+    BuildContext context,
+    FileManagerState state,
+    List<FileEntry> entries,
+  ) {
     final tab = state.currentTab;
     if (tab.loading) return const Center(child: CircularProgressIndicator());
-    if (tab.error != null) return Center(child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(Icons.error, size: 48, color: Colors.red),
-        const SizedBox(height: 16),
-        Text(tab.error!, style: const TextStyle(color: Colors.red)),
-        const SizedBox(height: 16),
-        FilledButton(onPressed: state.loadCurrentTab, child: const Text('重试')),
-      ],
-    ));
-    if (entries.isEmpty) return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(tab.isSearching ? Icons.search_off : Icons.folder_open, size: 64, color: Colors.grey),
-          const SizedBox(height: 16),
-          Text(tab.isSearching ? '无搜索结果' : '此目录为空', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-        ],
-      ),
-    );
+    if (tab.error != null)
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(tab.error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: state.loadCurrentTab,
+              child: const Text('重试'),
+            ),
+          ],
+        ),
+      );
+    if (entries.isEmpty)
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              tab.isSearching ? Icons.search_off : Icons.folder_open,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              tab.isSearching ? '无搜索结果' : '此目录为空',
+              style: const TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ],
+        ),
+      );
 
     if (tab.viewMode == ViewMode.grid) {
       return GridView.builder(
         padding: const EdgeInsets.all(8),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 160, childAspectRatio: 0.8),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 160,
+          childAspectRatio: 0.8,
+        ),
         itemCount: entries.length,
         itemBuilder: (ctx, i) {
           final e = entries[i];
@@ -375,11 +633,17 @@ class _FileManagerView extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusBar(BuildContext context, FileManagerState state, List<FileEntry> entries) {
+  Widget _buildStatusBar(
+    BuildContext context,
+    FileManagerState state,
+    List<FileEntry> entries,
+  ) {
     final theme = Theme.of(context);
     final dirs = entries.where((e) => e.isDirectory).length;
     final files = entries.where((e) => !e.isDirectory).length;
-    final totalSize = entries.where((e) => e.isFile).fold<int>(0, (sum, e) => sum + e.size);
+    final totalSize = entries
+        .where((e) => e.isFile)
+        .fold<int>(0, (sum, e) => sum + e.size);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -388,12 +652,20 @@ class _FileManagerView extends StatelessWidget {
         children: [
           Text('$dirs 个目录, $files 个文件', style: const TextStyle(fontSize: 12)),
           if (totalSize > 0)
-            Text('  (${Formatters.formatSize(totalSize)})', style: const TextStyle(fontSize: 12)),
+            Text(
+              '  (${Formatters.formatSize(totalSize)})',
+              style: const TextStyle(fontSize: 12),
+            ),
           if (state.currentTab.selectedPaths.isNotEmpty)
-            Text('  |  ${state.currentTab.selectedPaths.length} 已选', style: TextStyle(fontSize: 12, color: theme.colorScheme.primary)),
+            Text(
+              '  |  ${state.currentTab.selectedPaths.length} 已选',
+              style: TextStyle(fontSize: 12, color: theme.colorScheme.primary),
+            ),
           const Spacer(),
           FutureBuilder<DiskUsage?>(
-            future: Future(() => state.getDiskUsage(state.currentTab.currentPath)),
+            future: Future(
+              () => state.getDiskUsage(state.currentTab.currentPath),
+            ),
             builder: (ctx, snap) {
               if (!snap.hasData || snap.data == null) return const SizedBox();
               final d = snap.data!;
@@ -408,7 +680,11 @@ class _FileManagerView extends StatelessWidget {
     );
   }
 
-  void _handleTap(BuildContext context, FileManagerState state, FileEntry entry) {
+  void _handleTap(
+    BuildContext context,
+    FileManagerState state,
+    FileEntry entry,
+  ) {
     if (state.currentTab.selectedPaths.isNotEmpty) {
       state.toggleSelection(entry.path);
     } else if (entry.isDirectory) {
@@ -416,25 +692,62 @@ class _FileManagerView extends StatelessWidget {
     }
   }
 
-  void _handleMenu(BuildContext context, FileManagerState state, String action) {
+  void _handleMenu(
+    BuildContext context,
+    FileManagerState state,
+    String action,
+  ) {
     switch (action) {
-      case 'sort_name': state.setSortMode(SortMode.name); break;
-      case 'sort_size': state.setSortMode(SortMode.size); break;
-      case 'sort_modified': state.setSortMode(SortMode.modified); break;
-      case 'sort_type': state.setSortMode(SortMode.type); break;
-      case 'view_list': state.setViewMode(ViewMode.list); break;
-      case 'view_grid': state.setViewMode(ViewMode.grid); break;
-      case 'select_all': state.selectAll(); break;
-      case 'new_tab': state.addTab(state.currentTab.currentPath); break;
-      case 'bookmark':
-        state.addBookmark(FileService.getFileName(state.currentTab.currentPath), state.currentTab.currentPath);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已添加书签')));
+      case 'new_folder':
+        _createItem(context, state, true);
         break;
-      case 'refresh': state.loadCurrentTab(); break;
+      case 'new_file':
+        _createItem(context, state, false);
+        break;
+      case 'sort_name':
+        state.setSortMode(SortMode.name);
+        break;
+      case 'sort_size':
+        state.setSortMode(SortMode.size);
+        break;
+      case 'sort_modified':
+        state.setSortMode(SortMode.modified);
+        break;
+      case 'sort_type':
+        state.setSortMode(SortMode.type);
+        break;
+      case 'view_list':
+        state.setViewMode(ViewMode.list);
+        break;
+      case 'view_grid':
+        state.setViewMode(ViewMode.grid);
+        break;
+      case 'select_all':
+        state.selectAll();
+        break;
+      case 'new_tab':
+        state.addTab(state.currentTab.currentPath);
+        break;
+      case 'bookmark':
+        state.addBookmark(
+          FileService.getFileName(state.currentTab.currentPath),
+          state.currentTab.currentPath,
+        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已添加书签')));
+        break;
+      case 'refresh':
+        state.loadCurrentTab();
+        break;
     }
   }
 
-  void _showEntryMenu(BuildContext context, FileManagerState state, FileEntry entry) {
+  void _showEntryMenu(
+    BuildContext context,
+    FileManagerState state,
+    FileEntry entry,
+  ) {
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -444,25 +757,32 @@ class _FileManagerView extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.info),
               title: const Text('属性'),
-              onTap: () { Navigator.pop(ctx); _showProperties(context, state, entry); },
+              onTap: () {
+                Navigator.pop(ctx);
+                _showProperties(context, state, entry);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.edit),
               title: const Text('重命名'),
-              onTap: () { Navigator.pop(ctx); _showRenameDialog(context, state, entry); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('复制路径'),
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('路径: ${entry.path}')));
+                _showRenameDialog(context, state, entry);
               },
             ),
             ListTile(
-              leading: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
-              title: Text('删除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-              onTap: () { Navigator.pop(ctx); _confirmDelete(context, state, [entry]); },
+              leading: Icon(
+                Icons.delete,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                '删除',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmDelete(context, state, [entry]);
+              },
             ),
           ],
         ),
@@ -470,51 +790,58 @@ class _FileManagerView extends StatelessWidget {
     );
   }
 
-  void _showProperties(BuildContext context, FileManagerState state, FileEntry entry) {
-    showDialog(context: context, builder: (_) => PropertiesDialog(entry: entry, state: state));
+  void _showProperties(
+    BuildContext context,
+    FileManagerState state,
+    FileEntry entry,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) => PropertiesDialog(entry: entry, state: state),
+    );
   }
 
-  void _showRenameDialog(BuildContext context, FileManagerState state, FileEntry entry) {
+  void _showRenameDialog(
+    BuildContext context,
+    FileManagerState state,
+    FileEntry entry,
+  ) {
     final controller = TextEditingController(text: entry.name);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('重命名'),
-        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(border: OutlineInputBorder())),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () {
               final newName = controller.text.trim();
-              if (newName.isEmpty || newName == entry.name) { Navigator.pop(ctx); return; }
-              final newPath = FileService.joinPath(FileService.getParentPath(entry.path), newName);
+              if (newName.isEmpty || newName == entry.name) {
+                Navigator.pop(ctx);
+                return;
+              }
+              final newPath = FileService.joinPath(
+                FileService.getParentPath(entry.path),
+                newName,
+              );
               final err = state.rename(entry.path, newPath);
               Navigator.pop(ctx);
               if (err != null) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(err)));
               }
               state.loadCurrentTab();
             },
             child: const Text('重命名'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCreateDialog(BuildContext context, FileManagerState state) {
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('新建'),
-        children: [
-          SimpleDialogOption(
-            child: const ListTile(leading: Icon(Icons.folder), title: Text('新建文件夹'), dense: true),
-            onPressed: () { Navigator.pop(ctx); _createItem(context, state, true); },
-          ),
-          SimpleDialogOption(
-            child: const ListTile(leading: Icon(Icons.insert_drive_file), title: Text('新建文件'), dense: true),
-            onPressed: () { Navigator.pop(ctx); _createItem(context, state, false); },
           ),
         ],
       ),
@@ -530,18 +857,32 @@ class _FileManagerView extends StatelessWidget {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(labelText: isDir ? '文件夹名' : '文件名', border: const OutlineInputBorder()),
+          decoration: InputDecoration(
+            labelText: isDir ? '文件夹名' : '文件名',
+            border: const OutlineInputBorder(),
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () {
               final name = controller.text.trim();
               if (name.isEmpty) return;
-              final fullPath = FileService.joinPath(state.currentTab.currentPath, name);
-              final err = isDir ? state.createDirectory(fullPath) : state.createFile(fullPath);
+              final fullPath = FileService.joinPath(
+                state.currentTab.currentPath,
+                name,
+              );
+              final err = isDir
+                  ? state.createDirectory(fullPath)
+                  : state.createFile(fullPath);
               Navigator.pop(ctx);
-              if (err != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+              if (err != null)
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(err)));
               state.loadCurrentTab();
             },
             child: const Text('创建'),
@@ -551,22 +892,33 @@ class _FileManagerView extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, FileManagerState state, List<FileEntry> entries) {
+  void _confirmDelete(
+    BuildContext context,
+    FileManagerState state,
+    List<FileEntry> entries,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('确认删除'),
         content: Text('确定要删除 ${entries.length} 个项目吗？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               for (final e in entries) {
                 final err = state.deleteFile(e.path);
                 if (err != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${e.name}: $err')));
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('${e.name}: $err')));
                 }
               }
               state.clearSelection();
@@ -582,21 +934,23 @@ class _FileManagerView extends StatelessWidget {
   String _platformHomeDir() {
     if (Platform.isLinux) return '/home';
     if (Platform.isAndroid) return '/storage/emulated/0';
-    if (Platform.isIOS) return '.';  // iOS sandbox
+    if (Platform.isIOS) return '.'; // iOS sandbox
     return '/';
   }
 
   String _platformRootDir() {
     if (Platform.isLinux) return '/';
     if (Platform.isAndroid) return '/';
-    if (Platform.isIOS) return '.';  // iOS sandbox
+    if (Platform.isIOS) return '.'; // iOS sandbox
     return '/';
   }
 
   bool _platformIsLinux() => Platform.isLinux;
 
   void _deleteSelected(BuildContext context, FileManagerState state) {
-    final selected = state.currentTab.entries.where((e) => state.currentTab.selectedPaths.contains(e.path)).toList();
+    final selected = state.currentTab.entries
+        .where((e) => state.currentTab.selectedPaths.contains(e.path))
+        .toList();
     _confirmDelete(context, state, selected);
   }
 }
