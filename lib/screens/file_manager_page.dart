@@ -221,7 +221,7 @@ class _FileManagerView extends StatelessWidget {
           // Tools
           _drawerItem(context, state, Icons.settings, '设置', DrawerSection.settings, () {
             Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+            Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsPage(state: state)));
           }),
           _drawerItem(context, state, Icons.info, '关于', DrawerSection.settings, () {
             Navigator.pop(context);

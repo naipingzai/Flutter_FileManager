@@ -5,7 +5,8 @@ import '../providers/file_manager_state.dart';
 import '../services/file_service.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  final FileManagerState? state;
+  const SettingsPage({super.key, this.state});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -14,7 +15,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<FileManagerState>();
+    final state = widget.state ?? context.watch<FileManagerState>();
     final tab = state.currentTab;
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
