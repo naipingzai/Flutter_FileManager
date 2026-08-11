@@ -135,6 +135,23 @@ void file_ops_free_string(const char *str);
 SearchResultList* file_ops_find_duplicates(const char *dir, int max_results);
 SearchResultList* file_ops_find_empty_files(const char *dir, int max_results);
 
+// Recent files (modified within given days)
+SearchResultList* file_ops_get_recent_files(const char *dir, int days, int max_results);
+
+// Encryption / Decryption (AES-256-CBC)
+int file_ops_encrypt_file(const char *src, const char *dst, const char *password, char *error, int error_size);
+int file_ops_decrypt_file(const char *src, const char *dst, const char *password, char *error, int error_size);
+
+// File content I/O (raw reads for viewers)
+// Read entire file into a malloc'd string (caller must free). Returns NULL on error.
+char* file_ops_read_file_text(const char *path);
+// Write string content to file.
+int file_ops_write_file_text(const char *path, const char *content, char *error, int error_size);
+// Read a chunk of raw bytes. Returns malloc'd buffer; writes actual count to out_len. Caller frees.
+unsigned char* file_ops_read_file_chunk(const char *path, int64_t offset, int length, int *out_len);
+// Read entire file into malloc'd buffer. Writes size to out_len. Caller frees.
+unsigned char* file_ops_read_file_bytes(const char *path, int *out_len);
+
 #ifdef __cplusplus
 }
 #endif

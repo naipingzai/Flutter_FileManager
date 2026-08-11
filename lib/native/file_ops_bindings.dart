@@ -1,9 +1,7 @@
 // ignore_for_file: non_constant_identifier_names
-import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
-import '../services/file_service.dart';
 
 // C function signatures
 typedef JsonListDirNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
@@ -30,6 +28,16 @@ typedef CopyMoveNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Ut
 typedef CopyMoveDart = int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, int);
 typedef ExistsNative = Int32 Function(Pointer<Utf8>);
 typedef ExistsDart = int Function(Pointer<Utf8>);
+typedef JsonRecentNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32, Int32);
+typedef JsonRecentDart = Pointer<Utf8> Function(Pointer<Utf8>, int, int);
+typedef EncryptDecryptNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Int32);
+typedef EncryptDecryptDart = int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, int);
+typedef JsonPathNative = Pointer<Utf8> Function(Pointer<Utf8>);
+typedef JsonPathDart = Pointer<Utf8> Function(Pointer<Utf8>);
+typedef WriteTextNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Int32);
+typedef WriteTextDart = int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, int);
+typedef JsonHexNative = Pointer<Utf8> Function(Pointer<Utf8>, Int64, Int32);
+typedef JsonHexDart = Pointer<Utf8> Function(Pointer<Utf8>, int, int);
 
 class FileOpsNative {
   static FileOpsNative? _instance;
@@ -53,6 +61,15 @@ class FileOpsNative {
   late final CopyMoveDart moveFile;
   late final ExistsDart exists;
   late final ExistsDart isDirectoryFn;
+  late final JsonRecentDart getRecentFiles;
+  late final EncryptDecryptDart encryptFile;
+  late final EncryptDecryptDart decryptFile;
+  // File content I/O
+  late final JsonPathDart readTextFile;
+  late final WriteTextDart writeTextFile;
+  late final JsonPathDart readCsvFile;
+  late final JsonHexDart readHexChunk;
+  late final JsonPathDart readImageAsBase64;
 
   FileOpsNative._() {
     _lib = _loadLibrary();
@@ -88,5 +105,14 @@ class FileOpsNative {
     moveFile = _lib.lookupFunction<CopyMoveNative, CopyMoveDart>('file_ops_json_move_file');
     exists = _lib.lookupFunction<ExistsNative, ExistsDart>('file_ops_json_exists');
     isDirectoryFn = _lib.lookupFunction<ExistsNative, ExistsDart>('file_ops_json_is_directory');
+    getRecentFiles = _lib.lookupFunction<JsonRecentNative, JsonRecentDart>('file_ops_json_get_recent_files');
+    encryptFile = _lib.lookupFunction<EncryptDecryptNative, EncryptDecryptDart>('file_ops_json_encrypt_file');
+    decryptFile = _lib.lookupFunction<EncryptDecryptNative, EncryptDecryptDart>('file_ops_json_decrypt_file');
+    // File content I/O
+    readTextFile = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_read_text_file');
+    writeTextFile = _lib.lookupFunction<WriteTextNative, WriteTextDart>('file_ops_json_write_text_file');
+    readCsvFile = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_read_csv_file');
+    readHexChunk = _lib.lookupFunction<JsonHexNative, JsonHexDart>('file_ops_json_read_hex_chunk');
+    readImageAsBase64 = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_read_image_as_base64');
   }
 }

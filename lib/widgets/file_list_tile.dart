@@ -23,51 +23,104 @@ class FileListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      selected: selected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-      leading: Stack(
-        children: [
-          Icon(FileIcons.iconForEntry(entry), color: FileIcons.colorForEntry(entry), size: 32),
-          if (entry.isSymlink)
-            Positioned(
-              right: 0, bottom: 0,
-              child: Icon(Icons.link, size: 12, color: theme.colorScheme.outline),
-            ),
-          if (!entry.isReadable)
-            Positioned(
-              right: 0, top: 0,
-              child: Icon(Icons.lock, size: 12, color: theme.colorScheme.error),
-            ),
-        ],
-      ),
-      title: Text(
-        entry.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontWeight: entry.isDirectory ? FontWeight.w600 : FontWeight.normal,
-          color: entry.isHidden ? theme.colorScheme.onSurfaceVariant : null,
-        ),
-      ),
-      subtitle: Text(
-        '${entry.sizeFormatted}  ${entry.modifiedFormatted}  ${entry.permissionsFormatted}',
-        style: const TextStyle(fontSize: 12),
-      ),
-      trailing: PopupMenuButton<String>(
-        onSelected: (_) => onMenuAction(),
-        itemBuilder: (_) => [
-          const PopupMenuItem(value: 'open', child: Text('打开')),
-          const PopupMenuItem(value: 'rename', child: Text('重命名')),
-          const PopupMenuItem(value: 'copy', child: Text('复制')),
-          const PopupMenuItem(value: 'move', child: Text('移动')),
-          const PopupMenuItem(value: 'delete', child: Text('删除')),
-          const PopupMenuItem(value: 'properties', child: Text('属性')),
-          const PopupMenuItem(value: 'hash', child: Text('计算校验和')),
-        ],
-      ),
+    return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
+      child: Container(
+        height: 64,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+              : null,
+        ),
+        child: Row(
+          children: [
+            // Icon area: 48x48 touch target with 24dp icon
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    FileIcons.iconForEntry(entry),
+                    color: FileIcons.colorForEntry(entry),
+                    size: 24,
+                  ),
+                  if (entry.isSymlink)
+                    const Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Icon(Icons.link, size: 12),
+                    ),
+                  if (!entry.isReadable)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Icon(
+                        Icons.lock,
+                        size: 12,
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Title and description
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: entry.isDirectory
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: entry.isHidden
+                          ? theme.colorScheme.onSurfaceVariant
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _description(entry),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // More button
+            IconButton(
+              icon: const Icon(Icons.more_vert),
+              onPressed: onMenuAction,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            ),
+          ],
+        ),
+      ),
     );
+  }
+
+  String _description(FileEntry entry) {
+    final parts = <String>[];
+    if (entry.isDirectory) {
+      parts.add('目录');
+    } else {
+      parts.add(entry.sizeFormatted);
+    }
+    parts.add(entry.modifiedFormatted);
+    return parts.join('  ');
   }
 }

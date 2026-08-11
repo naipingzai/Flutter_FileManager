@@ -7,6 +7,7 @@ class FileGridTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final VoidCallback? onMenuAction;
 
   const FileGridTile({
     super.key,
@@ -14,6 +15,7 @@ class FileGridTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.onLongPress,
+    this.onMenuAction,
   });
 
   @override
@@ -26,30 +28,72 @@ class FileGridTile extends StatelessWidget {
       child: Card(
         elevation: selected ? 4 : 1,
         color: selected ? theme.colorScheme.primaryContainer : null,
+        margin: const EdgeInsets.all(4),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: selected
               ? BorderSide(color: theme.colorScheme.primary, width: 2)
               : BorderSide.none,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(FileIcons.iconForEntry(entry), size: 48, color: FileIcons.colorForEntry(entry)),
-              const SizedBox(height: 8),
-              Text(
-                entry.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12),
+        child: Column(
+          children: [
+            // Thumbnail area with 1.78 aspect ratio
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: theme.colorScheme.surfaceContainerHighest,
+                ),
+                child: Center(
+                  child: Icon(
+                    FileIcons.iconForEntry(entry),
+                    size: 40,
+                    color: FileIcons.colorForEntry(entry),
+                  ),
+                ),
               ),
-              if (entry.isFile)
-                Text(entry.sizeFormatted, style: TextStyle(fontSize: 10, color: theme.colorScheme.outline)),
-            ],
-          ),
+            ),
+            // Bottom single-line row
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Icon(
+                      FileIcons.iconForEntry(entry),
+                      size: 20,
+                      color: FileIcons.colorForEntry(entry),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
+                    ),
+                  ),
+                  if (onMenuAction != null)
+                    IconButton(
+                      icon: const Icon(Icons.more_vert, size: 20),
+                      onPressed: onMenuAction,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 48,
+                      ),
+                    ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

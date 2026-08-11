@@ -878,3 +878,288 @@ extern "C" SearchResultList* file_ops_find_empty_files(const char *dir, int max_
 
     return result;
 }
+
+// ============================================================
+// Recent files (modified within given days)
+// ============================================================
+extern "C" SearchResultList* file_ops_get_recent_files(const char *dir, int days, int max_results) {
+    SearchResultList *result = (SearchResultList*)calloc(1, sizeof(SearchResultList));
+    if (!result) return NULL;
+    result->capacity = 256;
+    result->items = (SearchResult*)calloc(result->capacity, sizeof(SearchResult));
+    if (!result->items) return result;
+
+    time_t now = time(NULL);
+    time_t cutoff = now - (time_t)days * 86400;
+
+    try {
+        for (const auto &entry : fs::recursive_directory_iterator(dir,
+                fs::directory_options::skip_permission_denied)) {
+            if (result->count >= max_results) break;
+            if (!entry.is_regular_file()) continue;
+
+            struct stat st;
+            if (stat(entry.path().string().c_str(), &st) != 0) continue;
+            if (st.st_mtime < cutoff) continue;
+
+            if (result->count >= result->capacity) {
+                result->capacity *= 2;
+                result->items = (SearchResult*)realloc(result->items,
+                                                       result->capacity * sizeof(SearchResult));
+            }
+            SearchResult *sr = &result->items[result->count];
+            strncpy(sr->path, entry.path().string().c_str(), sizeof(sr->path) - 1);
+            std::string name = entry.path().filename().string();
+            strncpy(sr->name, name.c_str(), sizeof(sr->name) - 1);
+            sr->type = FILE_TYPE_REGULAR;
+            sr->size = st.st_size;
+            sr->modified_time = st.st_mtime;
+            result->count++;
+        }
+    } catch (...) {}
+
+    return result;
+}
+
+// ============================================================
+// Encryption / Decryption (AES-256-CBC)
+// Uses OpenSSL EVP APIs. Key = SHA256(password), IV = first 16 bytes written to file.
+// ============================================================
+
+static int derive_key_iv(const char *password, unsigned char *key, unsigned char *iv) {
+    // key = SHA256(password) => 32 bytes (AES-256)
+    if (EVP_Digest(password, strlen(password), key, NULL, EVP_sha256(), NULL) != 1)
+        return -1;
+    // iv: first 16 bytes of SHA256(key) for deterministic IV (matching Dart encrypt impl)
+    if (EVP_Digest(key, 32, iv, NULL, EVP_sha256(), NULL) != 1)
+        return -1;
+    return 0;
+}
+
+extern "C" int file_ops_encrypt_file(const char *src, const char *dst, const char *password,
+                                     char *error, int error_size) {
+    if (!password || !password[0]) {
+        if (error) snprintf(error, error_size, "password is empty");
+        return -1;
+    }
+
+    unsigned char key[32], full_iv[32];
+    if (derive_key_iv(password, key, full_iv) != 0) {
+        if (error) snprintf(error, error_size, "key derivation failed");
+        return -1;
+    }
+
+    FILE *fp_in = fopen(src, "rb");
+    if (!fp_in) {
+        if (error) snprintf(error, error_size, "open source failed: %s", strerror(errno));
+        return -1;
+    }
+
+    FILE *fp_out = fopen(dst, "wb");
+    if (!fp_out) {
+        if (error) snprintf(error, error_size, "open dest failed: %s", strerror(errno));
+        fclose(fp_in);
+        return -1;
+    }
+
+    // Write 16-byte IV prefix (matching Dart: iv.bytes + encrypted.bytes)
+    fwrite(full_iv, 1, 16, fp_out);
+
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        if (error) snprintf(error, error_size, "cipher ctx alloc failed");
+        fclose(fp_in); fclose(fp_out);
+        return -1;
+    }
+
+    int ret = -1;
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, full_iv) == 1) {
+        unsigned char inbuf[65536], outbuf[65536 + EVP_MAX_BLOCK_LENGTH];
+        int outlen = 0;
+        size_t n;
+        ret = 0;
+
+        while ((n = fread(inbuf, 1, sizeof(inbuf), fp_in)) > 0) {
+            if (EVP_EncryptUpdate(ctx, outbuf, &outlen, inbuf, (int)n) != 1) {
+                ret = -1; break;
+            }
+            fwrite(outbuf, 1, outlen, fp_out);
+        }
+
+        if (ret == 0) {
+            if (EVP_EncryptFinal_ex(ctx, outbuf, &outlen) == 1) {
+                fwrite(outbuf, 1, outlen, fp_out);
+            } else {
+                ret = -1;
+            }
+        }
+    }
+
+    EVP_CIPHER_CTX_free(ctx);
+    fclose(fp_in);
+    fclose(fp_out);
+
+    if (ret != 0 && error) {
+        snprintf(error, error_size, "encryption failed");
+    }
+    return ret;
+}
+
+extern "C" int file_ops_decrypt_file(const char *src, const char *dst, const char *password,
+                                     char *error, int error_size) {
+    if (!password || !password[0]) {
+        if (error) snprintf(error, error_size, "password is empty");
+        return -1;
+    }
+
+    unsigned char key[32], full_iv[32];
+    if (derive_key_iv(password, key, full_iv) != 0) {
+        if (error) snprintf(error, error_size, "key derivation failed");
+        return -1;
+    }
+
+    FILE *fp_in = fopen(src, "rb");
+    if (!fp_in) {
+        if (error) snprintf(error, error_size, "open source failed: %s", strerror(errno));
+        return -1;
+    }
+
+    // Read 16-byte IV prefix
+    unsigned char file_iv[16];
+    if (fread(file_iv, 1, 16, fp_in) != 16) {
+        if (error) snprintf(error, error_size, "invalid encrypted file (too short)");
+        fclose(fp_in);
+        return -1;
+    }
+
+    // Use the IV from the file for decryption
+    FILE *fp_out = fopen(dst, "wb");
+    if (!fp_out) {
+        if (error) snprintf(error, error_size, "open dest failed: %s", strerror(errno));
+        fclose(fp_in);
+        return -1;
+    }
+
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        if (error) snprintf(error, error_size, "cipher ctx alloc failed");
+        fclose(fp_in); fclose(fp_out);
+        return -1;
+    }
+
+    int ret = -1;
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, file_iv) == 1) {
+        unsigned char inbuf[65536], outbuf[65536 + EVP_MAX_BLOCK_LENGTH];
+        int outlen = 0;
+        size_t n;
+        ret = 0;
+
+        while ((n = fread(inbuf, 1, sizeof(inbuf), fp_in)) > 0) {
+            if (EVP_DecryptUpdate(ctx, outbuf, &outlen, inbuf, (int)n) != 1) {
+                ret = -1; break;
+            }
+            fwrite(outbuf, 1, outlen, fp_out);
+        }
+
+        if (ret == 0) {
+            if (EVP_DecryptFinal_ex(ctx, outbuf, &outlen) == 1) {
+                fwrite(outbuf, 1, outlen, fp_out);
+            } else {
+                ret = -1;
+            }
+        }
+    }
+
+    EVP_CIPHER_CTX_free(ctx);
+    fclose(fp_in);
+    fclose(fp_out);
+
+    if (ret != 0 && error) {
+        snprintf(error, error_size, "decryption failed (wrong password or corrupted file)");
+    }
+    return ret;
+}
+
+// ============================================================
+// File content I/O (for viewers)
+// ============================================================
+
+extern "C" char* file_ops_read_file_text(const char *path) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return NULL;
+
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    if (size < 0) { fclose(fp); return NULL; }
+
+    char *buf = (char*)malloc(size + 1);
+    if (!buf) { fclose(fp); return NULL; }
+
+    size_t read = fread(buf, 1, size, fp);
+    fclose(fp);
+    buf[read] = '\0';
+    return buf;
+}
+
+extern "C" int file_ops_write_file_text(const char *path, const char *content,
+                                         char *error, int error_size) {
+    FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        if (error) snprintf(error, error_size, "open for write failed: %s", strerror(errno));
+        return -1;
+    }
+    size_t len = strlen(content);
+    size_t written = fwrite(content, 1, len, fp);
+    fclose(fp);
+    if (written != len) {
+        if (error) snprintf(error, error_size, "short write");
+        return -1;
+    }
+    return 0;
+}
+
+extern "C" unsigned char* file_ops_read_file_chunk(const char *path, int64_t offset,
+                                                    int length, int *out_len) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) { if (out_len) *out_len = 0; return NULL; }
+
+    fseek(fp, 0, SEEK_END);
+    int64_t file_size = ftell(fp);
+
+    if (offset >= file_size) { fclose(fp); if (out_len) *out_len = 0; return NULL; }
+
+    int64_t actual = length;
+    if (offset + actual > file_size) actual = file_size - offset;
+
+    unsigned char *buf = (unsigned char*)malloc(actual);
+    if (!buf) { fclose(fp); if (out_len) *out_len = 0; return NULL; }
+
+    fseek(fp, offset, SEEK_SET);
+    size_t read = fread(buf, 1, (size_t)actual, fp);
+    fclose(fp);
+
+    if (out_len) *out_len = (int)read;
+    return buf;
+}
+
+extern "C" unsigned char* file_ops_read_file_bytes(const char *path, int *out_len) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) { if (out_len) *out_len = 0; return NULL; }
+
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    if (size < 0) { fclose(fp); if (out_len) *out_len = 0; return NULL; }
+
+    unsigned char *buf = (unsigned char*)malloc(size);
+    if (!buf) { fclose(fp); if (out_len) *out_len = 0; return NULL; }
+
+    size_t read = fread(buf, 1, size, fp);
+    fclose(fp);
+
+    if (out_len) *out_len = (int)read;
+    return buf;
+}

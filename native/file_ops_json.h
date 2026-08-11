@@ -35,6 +35,20 @@ int file_ops_json_link(const char* oldpath, const char* newpath, char* error, in
 char* file_ops_json_realpath(const char* path);
 char* file_ops_json_readlink(const char* path);
 
+// Recent files
+char* file_ops_json_get_recent_files(const char* dir, int days, int max_results);
+
+// Encryption / Decryption
+int file_ops_json_encrypt_file(const char* src, const char* dst, const char* password, char* error, int error_size);
+int file_ops_json_decrypt_file(const char* src, const char* dst, const char* password, char* error, int error_size);
+
+// File content I/O (for viewers)
+char* file_ops_json_read_text_file(const char* path);
+int file_ops_json_write_text_file(const char* path, const char* content, char* error, int error_size);
+char* file_ops_json_read_csv_file(const char* path);
+char* file_ops_json_read_hex_chunk(const char* path, long long offset, int length);
+char* file_ops_json_read_image_as_base64(const char* path);
+
 void file_ops_free_json(char* json);
 
 #ifdef __cplusplus

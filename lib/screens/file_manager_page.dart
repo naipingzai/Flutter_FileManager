@@ -7,19 +7,37 @@ import '../widgets/file_list_tile.dart';
 import '../widgets/file_grid_tile.dart';
 import '../widgets/properties_dialog.dart';
 import 'search_page.dart';
-import 'storage_analysis_page.dart';
-import 'tools_page.dart';
 import 'settings_page.dart';
 import 'about_page.dart';
 import '../utils/formatters.dart';
 
-class FileManagerPage extends StatelessWidget {
+class FileManagerPage extends StatefulWidget {
   const FileManagerPage({super.key});
 
   @override
+  State<FileManagerPage> createState() => _FileManagerPageState();
+}
+
+class _FileManagerPageState extends State<FileManagerPage> {
+  late final FileManagerState _state;
+
+  @override
+  void initState() {
+    super.initState();
+    _state = FileManagerState();
+    _state.initialize();
+  }
+
+  @override
+  void dispose() {
+    _state.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => FileManagerState(),
+    return ChangeNotifierProvider.value(
+      value: _state,
       child: const _FileManagerView(),
     );
   }
@@ -168,9 +186,8 @@ class _FileManagerView extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text('快速访问', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
           ),
-          _quickAccessItem(context, state, Icons.home, '主目录', state.fileService.getHomeDirectory()),
+          _quickAccessItem(context, state, Icons.home, '主目录', '/home'),
           _quickAccessItem(context, state, Icons.folder, '根目录', '/'),
-          _quickAccessItem(context, state, Icons.person, '用户目录', '${state.fileService.getHomeDirectory()}'),
           const Divider(),
           // Bookmarks
           Padding(
@@ -194,14 +211,6 @@ class _FileManagerView extends StatelessWidget {
           )),
           const Divider(),
           // Tools
-          _drawerItem(context, state, Icons.build, '文件工具', DrawerSection.tools, () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => ToolsPage(state: state)));
-          }),
-          _drawerItem(context, state, Icons.pie_chart, '存储分析', DrawerSection.storage, () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => StorageAnalysisPage(state: state)));
-          }),
           _drawerItem(context, state, Icons.settings, '设置', DrawerSection.settings, () {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));

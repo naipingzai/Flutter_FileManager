@@ -8,54 +8,36 @@ class SettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         children: [
-          _section('通用设置', [
-            _item(Icons.language, '语言', '跟随系统', () {}),
-            _item(Icons.folder, '默认目录', '主目录', () {}),
-            _item(Icons.sort, '排序方式', '按名称', () {}),
-            _item(Icons.text_fields, '文件名显示', '完整显示', () {}),
-            _item(Icons.visibility_off, '显示隐藏文件', '否', () {}),
-          ]),
-          _section('显示设置', [
-            _item(Icons.format_size, '字体大小', '100%', () {}),
-            _item(Icons.space_bar, '界面间距', '默认', () {}),
-            _item(Icons.height, '列表项高度', '默认', () {}),
-            _item(Icons.image, '图标大小', '默认', () {}),
-          ]),
-          _section('功能设置', [
-            _item(Icons.build, '文件工具', '已启用', () {}),
-            _item(Icons.movie, '媒体工具', '已启用', () {}),
-            _item(Icons.delete, '回收站', '已启用', () {}),
-          ]),
-          _section('关于', [
-            _item(Icons.info, '版本', '1.0.0', () {}),
-            _item(Icons.code, '源代码', 'GPL-3.0', () {}),
-          ]),
+          _cardItem(context, '默认视图', '列表视图', Icons.view_list),
+          _cardItem(context, '显示隐藏文件', '否', Icons.visibility_off),
+          _cardItem(context, '排序方式', '按名称', Icons.sort),
+          _cardItem(context, '目录优先', '是', Icons.folder_special),
+          _cardItem(context, '主存储', '根目录 /', Icons.storage),
         ],
       ),
     );
   }
 
-  Widget _section(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue)),
+  Widget _cardItem(BuildContext context, String title, String subtitle, IconData icon) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+        title: Text(title, style: theme.textTheme.titleSmall),
+        subtitle: Text(
+          subtitle,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
-        ...children,
-        const Divider(),
-      ],
-    );
-  }
-
-  Widget _item(IconData icon, String title, String subtitle, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, size: 22),
-      title: Text(title),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-      onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 }

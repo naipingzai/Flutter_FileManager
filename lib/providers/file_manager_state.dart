@@ -46,8 +46,14 @@ class FileManagerState extends ChangeNotifier {
   DrawerSection drawerSection = DrawerSection.storage;
 
   FileManagerState() {
-    final home = _fileService.getHomeDirectory();
-    tabs.add(TabState(id: '0', currentPath: home));
+    tabs.add(TabState(id: '0', currentPath: '/'));
+  }
+
+  Future<void> initialize() async {
+    try {
+      final home = await _fileService.getHomeDirectory();
+      tabs[0] = TabState(id: '0', currentPath: home);
+    } catch (_) {}
     loadCurrentTab();
   }
 
@@ -249,7 +255,7 @@ class FileManagerState extends ChangeNotifier {
   FileHash? computeHash(String path) => _fileService.computeHash(path);
   DiskUsage? getDiskUsage(String path) => _fileService.getDiskUsage(path);
   List<FileEntry> searchFiles(String dir, String pattern) => _fileService.searchFiles(dir, pattern);
-  List<FileEntry> findDuplicates(String dir) => _fileService.findDuplicates(dir);
+  List<DuplicateGroup> findDuplicates(String dir) => _fileService.findDuplicates(dir);
   List<FileEntry> findEmptyFiles(String dir) => _fileService.findEmptyFiles(dir);
 }
 

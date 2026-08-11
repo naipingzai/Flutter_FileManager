@@ -1,9 +1,24 @@
 // ignore_for_file: non_constant_identifier_names
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:io';
 import 'package:ffi/ffi.dart';
 import '../native/file_ops_bindings.dart';
 
+/// File viewer type for UI routing
+enum FileViewerType {
+  text,
+  image,
+  video,
+  audio,
+  pdf,
+  csv,
+  ebook,
+  external,
+  unknown,
+}
+
+/// File type enum (mirrors C++ FileType)
 enum FileType {
   unknown(0),
   regular(1),
@@ -18,8 +33,10 @@ enum FileType {
   const FileType(this.value);
 }
 
+/// Sort mode for file lists
 enum SortMode { name, size, modified, type }
 
+/// View mode for file lists
 enum ViewMode { list, grid }
 
 FileType fileTypeFromInt(int v) => FileType.values.firstWhere(
@@ -65,11 +82,13 @@ String _formatSize(int bytes) {
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1048576) return '${(bytes / 1024).toStringAsFixed(1)} KB';
   if (bytes < 1073741824) return '${(bytes / 1048576).toStringAsFixed(1)} MB';
-  if (bytes < 1099511627776)
+  if (bytes < 1099511627776) {
     return '${(bytes / 1073741824).toStringAsFixed(1)} GB';
+  }
   return '${(bytes / 1099511627776).toStringAsFixed(1)} TB';
 }
 
+/// Represents a single file/directory entry from the C++ backend.
 class FileEntry {
   final String name;
   final String path;
@@ -119,11 +138,7 @@ class FileEntry {
   String get permissionsFormatted => _formatPermissions(permissions);
   String get octalPermissions =>
       '0${(permissions >> 6) & 7}${(permissions >> 3) & 7}${permissions & 7}';
-
-  // Port of BasicFileAttributesExtensions.kt - fileSize
   FileSize get fileSize => FileSize(size);
-
-  // Port of BasicFileAttributesExtensions.kt - lastModifiedInstant
   DateTime get lastModifiedDateTime =>
       DateTime.fromMillisecondsSinceEpoch(modifiedTime * 1000);
 
@@ -182,8 +197,29 @@ class FileHash {
   });
 }
 
+class DuplicateGroup {
+  final String hash;
+  final List<FileEntry> files;
+  DuplicateGroup({required this.hash, required this.files});
+}
+
+class HexChunkResult {
+  final String hex;
+  final String ascii;
+  final int length;
+  HexChunkResult({required this.hex, required this.ascii, required this.length});
+}
+
+/// Pure C++ backend file service. All operations go through FFI to libfile_ops.so.
+/// No Dart-native fallback – the C++ library is the single source of truth.
 class FileService {
-  final FileOpsNative _n = FileOpsNative();
+  static final FileService _instance = FileService._internal();
+  factory FileService() => _instance;
+  FileService._internal();
+
+  late final FileOpsNative _n = FileOpsNative();
+
+  // ---------- helpers ----------
 
   String _callJson(Pointer<Utf8> Function() fn) {
     final ptr = fn();
@@ -192,7 +228,43 @@ class FileService {
     return str;
   }
 
-  String getHomeDirectory() {
+  /// Run an FFI function that writes to an error buffer.
+  /// Returns null on success, or the error string.
+  String? _callWithError(String Function(Pointer<Utf8> err, int errSize) fn) {
+    final err = calloc<Char>(512).cast<Utf8>();
+    try {
+      final ret = fn(err, 512);
+      if (ret != 0) return err.toDartString();
+      return null;
+    } finally {
+      calloc.free(err);
+    }
+  }
+
+  // ---------- static path helpers ----------
+
+  static String getFileName(String path) {
+    if (path.isEmpty || path == '/') return '/';
+    final parts = path.split('/');
+    return parts.isEmpty ? '/' : parts.last;
+  }
+
+  static String getParentPath(String path) {
+    if (path.isEmpty || path == '/') return '/';
+    final idx = path.lastIndexOf('/');
+    if (idx <= 0) return '/';
+    return path.substring(0, idx);
+  }
+
+  static String joinPath(String a, String b) {
+    if (a.endsWith('/')) return '$a$b';
+    return '$a/$b';
+  }
+
+  // ---------- directory & file queries ----------
+
+  Future<String> getHomeDirectory() async {
+    if (Platform.isAndroid) return '/storage/emulated/0';
     final j = jsonDecode(_callJson(_n.getHomeDir));
     return j['path'] ?? '/';
   }
@@ -200,83 +272,85 @@ class FileService {
   String getRootDirectory() => '/';
 
   List<FileEntry> listDirectory(String path, {bool showHidden = false}) {
-    final p = path.toNativeUtf8();
+    final pp = path.toNativeUtf8();
     try {
-      final str = _callJson(() => _n.listDirectory(p, showHidden ? 1 : 0));
+      final str = _callJson(() => _n.listDirectory(pp, showHidden ? 1 : 0));
       final j = jsonDecode(str);
       if (j['error'] != null && j['error'] != '') return [];
       return (j['items'] as List).map((e) => FileEntry.fromJson(e)).toList();
     } catch (_) {
       return [];
     } finally {
-      calloc.free(p);
+      calloc.free(pp);
     }
   }
 
   FileEntry? getFileInfo(String path) {
-    final p = path.toNativeUtf8();
+    final pp = path.toNativeUtf8();
     try {
-      final str = _callJson(() => _n.getFileInfo(p));
+      final str = _callJson(() => _n.getFileInfo(pp));
       final j = jsonDecode(str);
       if (j['error'] != null && j['error'] != '') return null;
       return FileEntry.fromJson(j['info']);
     } catch (_) {
       return null;
     } finally {
-      calloc.free(p);
+      calloc.free(pp);
     }
   }
 
   bool exists(String path) {
-    final p = path.toNativeUtf8();
+    final pp = path.toNativeUtf8();
     try {
-      return _n.exists(p) == 1;
+      return _n.exists(pp) == 1;
     } finally {
-      calloc.free(p);
+      calloc.free(pp);
     }
   }
 
   bool isDirectory(String path) {
-    final p = path.toNativeUtf8();
+    final pp = path.toNativeUtf8();
     try {
-      return _n.isDirectoryFn(p) == 1;
+      return _n.isDirectoryFn(pp) == 1;
     } finally {
-      calloc.free(p);
+      calloc.free(pp);
     }
   }
 
+  // ---------- file operations ----------
+
   String? createDirectory(String path) {
-    final p = path.toNativeUtf8();
+    final pp = path.toNativeUtf8();
     final e = calloc<Char>(256).cast<Utf8>();
     try {
-      if (_n.createDirectory(p, e, 256) != 0) return e.toDartString();
+      if (_n.createDirectory(pp, e, 256) != 0) return e.toDartString();
       return null;
     } finally {
-      calloc.free(p);
+      calloc.free(pp);
       calloc.free(e);
     }
   }
 
   String? createFile(String path) {
-    final p = path.toNativeUtf8();
+    final pp = path.toNativeUtf8();
     final e = calloc<Char>(256).cast<Utf8>();
     try {
-      if (_n.createFile(p, e, 256) != 0) return e.toDartString();
+      if (_n.createFile(pp, e, 256) != 0) return e.toDartString();
       return null;
     } finally {
-      calloc.free(p);
+      calloc.free(pp);
       calloc.free(e);
     }
   }
 
   String? deleteFile(String path) {
-    final p = path.toNativeUtf8();
+    final pp = path.toNativeUtf8();
     final e = calloc<Char>(256).cast<Utf8>();
     try {
-      if (_n.deleteFile(p, e, 256) != 0) return e.toDartString();
+      if (_n.deleteFile(pp, e, 256) != 0) return e.toDartString();
       return null;
     } finally {
-      calloc.free(p);
+      calloc.free(pp);
       calloc.free(e);
     }
   }
@@ -323,43 +397,31 @@ class FileService {
     }
   }
 
+  // ---------- search & tools ----------
+
   List<FileEntry> searchFiles(
     String dir,
     String pattern, {
     int maxResults = 1000,
   }) {
-    final d = dir.toNativeUtf8();
-    final p = pattern.toNativeUtf8();
+    final d = dir.toNativeUtf8(), pp = pattern.toNativeUtf8();
     try {
-      final str = _callJson(() => _n.searchFiles(d, p, maxResults));
+      final str = _callJson(() => _n.searchFiles(d, pp, maxResults));
       final j = jsonDecode(str);
       if (j['error'] != null && j['error'] != '') return [];
-      return (j['items'] as List)
-          .map(
-            (e) => FileEntry(
-              name: e['name'] ?? '',
-              path: e['path'] ?? '',
-              type: fileTypeFromInt(e['type'] ?? 0),
-              size: e['size'] ?? 0,
-              modifiedTime: e['modifiedTime'] ?? 0,
-              permissions: 0,
-              mimeType: 'application/octet-stream',
-              isHidden: (e['name'] ?? '').startsWith('.'),
-            ),
-          )
-          .toList();
+      return (j['items'] as List).map((e) => FileEntry.fromJson(e)).toList();
     } catch (_) {
       return [];
     } finally {
       calloc.free(d);
-      calloc.free(p);
+      calloc.free(pp);
     }
   }
 
   FileHash? computeHash(String path) {
-    final p = path.toNativeUtf8();
+    final pp = path.toNativeUtf8();
     try {
-      final str = _callJson(() => _n.computeHash(p));
+      final str = _callJson(() => _n.computeHash(pp));
       final j = jsonDecode(str);
       if (j['error'] != null && j['error'] != '') return null;
       return FileHash(
@@ -372,105 +434,225 @@ class FileService {
     } catch (_) {
       return null;
     } finally {
-      calloc.free(p);
+      calloc.free(pp);
     }
   }
 
-  DiskUsage? getDiskUsage(String path) {
-    final p = path.toNativeUtf8();
+  DiskUsage getDiskUsage(String path) {
+    final pp = path.toNativeUtf8();
     try {
-      final str = _callJson(() => _n.getDiskUsage(p));
+      final str = _callJson(() => _n.getDiskUsage(pp));
       final j = jsonDecode(str);
-      if (j['error'] != null && j['error'] != '') return null;
+      if (j['error'] != null && j['error'] != '') {
+        return DiskUsage(totalSpace: 0, freeSpace: 0, usedSpace: 0);
+      }
       return DiskUsage(
         totalSpace: j['totalSpace'] ?? 0,
         freeSpace: j['freeSpace'] ?? 0,
         usedSpace: j['usedSpace'] ?? 0,
       );
     } catch (_) {
+      return DiskUsage(totalSpace: 0, freeSpace: 0, usedSpace: 0);
+    } finally {
+      calloc.free(pp);
+    }
+  }
+
+  List<DuplicateGroup> findDuplicates(String path) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => _n.findDuplicates(pp, 10000));
+      final j = jsonDecode(str);
+      if (j['error'] != null && j['error'] != '') return [];
+      // C++ returns flat list of duplicate files; group them by size for display.
+      final items = (j['items'] as List)
+          .map((e) => FileEntry.fromJson(e))
+          .toList();
+      // Group by size as a simple hash proxy (C++ already filtered by CRC32)
+      final map = <String, List<FileEntry>>{};
+      for (final f in items) {
+        final key = '${f.size}_${f.name}';
+        map.putIfAbsent(key, () => []).add(f);
+      }
+      return map.entries
+          .where((e) => e.value.length > 1)
+          .map((e) => DuplicateGroup(hash: e.key, files: e.value))
+          .toList();
+    } catch (_) {
+      return [];
+    } finally {
+      calloc.free(pp);
+    }
+  }
+
+  List<FileEntry> findEmptyFiles(String path) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => _n.findEmptyFiles(pp, 10000));
+      final j = jsonDecode(str);
+      if (j['error'] != null && j['error'] != '') return [];
+      return (j['items'] as List).map((e) => FileEntry.fromJson(e)).toList();
+    } catch (_) {
+      return [];
+    } finally {
+      calloc.free(pp);
+    }
+  }
+
+  List<FileEntry> getRecentFiles(String path, {int limit = 30}) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => _n.getRecentFiles(pp, 7, 10000));
+      final j = jsonDecode(str);
+      if (j['error'] != null && j['error'] != '') return [];
+      final items = (j['items'] as List)
+          .map((e) => FileEntry.fromJson(e))
+          .toList();
+      items.sort((a, b) => b.modifiedTime.compareTo(a.modifiedTime));
+      return items.take(limit).toList();
+    } catch (_) {
+      return [];
+    } finally {
+      calloc.free(pp);
+    }
+  }
+
+  // ---------- viewer determination ----------
+
+  FileViewerType determineViewer(String path) {
+    final name = getFileName(path).toLowerCase();
+    final ext = name.contains('.') ? '.${name.split('.').last}' : '';
+
+    const imageExts = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico', '.tiff', '.tif', '.heic', '.avif'};
+    const videoExts = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.3gp'};
+    const audioExts = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a', '.opus'};
+    const textExts = {'.txt', '.log', '.md', '.json', '.xml', '.yaml', '.yml', '.toml', '.ini', '.conf', '.css', '.js', '.py', '.rs', '.go', '.dart', '.sh', '.bat', '.c', '.cpp', '.h', '.hpp', '.java', '.kt', '.swift', '.html', '.htm'};
+
+    if (imageExts.contains(ext)) return FileViewerType.image;
+    if (videoExts.contains(ext)) return FileViewerType.video;
+    if (audioExts.contains(ext)) return FileViewerType.audio;
+    if (ext == '.pdf') return FileViewerType.pdf;
+    if (ext == '.csv') return FileViewerType.csv;
+    if (ext == '.epub') return FileViewerType.ebook;
+    if (textExts.contains(ext)) return FileViewerType.text;
+    return FileViewerType.external;
+  }
+
+  Future<void> openFile(String path) async {
+    // On Linux, use xdg-open as a fallback
+    if (Platform.isLinux) {
+      await Process.run('xdg-open', [path]);
+    }
+  }
+
+  // ---------- file content I/O (for viewers) ----------
+
+  String? readTextFile(String path) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => _n.readTextFile(pp));
+      final j = jsonDecode(str);
+      if (j['error'] != null && j['error'] != '') return null;
+      return j['text'] as String?;
+    } catch (_) {
       return null;
     } finally {
+      calloc.free(pp);
+    }
+  }
+
+  String? writeTextFile(String path, String content) {
+    final pp = path.toNativeUtf8();
+    final cc = content.toNativeUtf8();
+    final e = calloc<Char>(512).cast<Utf8>();
+    try {
+      if (_n.writeTextFile(pp, cc, e, 512) != 0) return e.toDartString();
+      return null;
+    } finally {
+      calloc.free(pp);
+      calloc.free(cc);
+      calloc.free(e);
+    }
+  }
+
+  List<List<String>> readCsvFile(String path) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => _n.readCsvFile(pp));
+      final j = jsonDecode(str);
+      if (j['error'] != null && j['error'] != '') return [];
+      final rows = j['rows'] as List;
+      return rows.map((row) => (row as List).map((c) => c.toString()).toList()).toList();
+    } catch (_) {
+      return [];
+    } finally {
+      calloc.free(pp);
+    }
+  }
+
+  HexChunkResult? readHexChunk(String path, int offset, int length) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => _n.readHexChunk(pp, offset, length));
+      final j = jsonDecode(str);
+      if (j['error'] != null && j['error'] != '') return null;
+      return HexChunkResult(
+        hex: j['hex'] ?? '',
+        ascii: j['ascii'] ?? '',
+        length: j['length'] ?? 0,
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      calloc.free(pp);
+    }
+  }
+
+  String? readImageAsBase64(String path) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => _n.readImageAsBase64(pp));
+      final j = jsonDecode(str);
+      if (j['error'] != null && j['error'] != '') return null;
+      return j['base64'] as String?;
+    } catch (_) {
+      return null;
+    } finally {
+      calloc.free(pp);
+    }
+  }
+
+  // ---------- encryption / decryption ----------
+
+  Future<String?> encryptFile(String src, String dst, String password) async {
+    final s = src.toNativeUtf8();
+    final d = dst.toNativeUtf8();
+    final p = password.toNativeUtf8();
+    final e = calloc<Char>(512).cast<Utf8>();
+    try {
+      if (_n.encryptFile(s, d, p, e, 512) != 0) return e.toDartString();
+      return null;
+    } finally {
+      calloc.free(s);
+      calloc.free(d);
       calloc.free(p);
+      calloc.free(e);
     }
   }
 
-  List<FileEntry> findDuplicates(String dir) {
-    final d = dir.toNativeUtf8();
+  Future<String?> decryptFile(String src, String dst, String password) async {
+    final s = src.toNativeUtf8();
+    final d = dst.toNativeUtf8();
+    final p = password.toNativeUtf8();
+    final e = calloc<Char>(512).cast<Utf8>();
     try {
-      final str = _callJson(() => _n.findDuplicates(d, 500));
-      final j = jsonDecode(str);
-      if (j['error'] != null && j['error'] != '') return [];
-      return (j['items'] as List)
-          .map(
-            (e) => FileEntry(
-              name: e['name'] ?? '',
-              path: e['path'] ?? '',
-              type: FileType.regular,
-              size: e['size'] ?? 0,
-              modifiedTime: 0,
-              permissions: 0,
-            ),
-          )
-          .toList();
-    } catch (_) {
-      return [];
+      if (_n.decryptFile(s, d, p, e, 512) != 0) return e.toDartString();
+      return null;
     } finally {
+      calloc.free(s);
       calloc.free(d);
+      calloc.free(p);
+      calloc.free(e);
     }
-  }
-
-  List<FileEntry> findEmptyFiles(String dir) {
-    final d = dir.toNativeUtf8();
-    try {
-      final str = _callJson(() => _n.findEmptyFiles(d, 500));
-      final j = jsonDecode(str);
-      if (j['error'] != null && j['error'] != '') return [];
-      return (j['items'] as List)
-          .map(
-            (e) => FileEntry(
-              name: e['name'] ?? '',
-              path: e['path'] ?? '',
-              type: fileTypeFromInt(e['type'] ?? 0),
-              size: e['size'] ?? 0,
-              modifiedTime: 0,
-              permissions: 0,
-            ),
-          )
-          .toList();
-    } catch (_) {
-      return [];
-    } finally {
-      calloc.free(d);
-    }
-  }
-
-  static String getParentPath(String path) {
-    if (path == '/') return '/';
-    final idx = path.lastIndexOf('/');
-    return idx <= 0 ? '/' : path.substring(0, idx);
-  }
-
-  static String getFileName(String path) {
-    if (path == '/') return '/';
-    final idx = path.lastIndexOf('/');
-    return idx < 0 ? path : path.substring(idx + 1);
-  }
-
-  static String joinPath(String parent, String child) =>
-      parent.endsWith('/') ? '$parent$child' : '$parent/$child';
-
-  // Port of JavaFile.kt - helpers wrapping java.io.File statics
-  static bool javaFileIsDirectory(String path) {
-    return FileService().isDirectory(path);
-  }
-
-  static int javaFileGetFreeSpace(String path) {
-    final usage = FileService().getDiskUsage(path);
-    return usage?.freeSpace ?? 0;
-  }
-
-  static int javaFileGetTotalSpace(String path) {
-    final usage = FileService().getDiskUsage(path);
-    return usage?.totalSpace ?? 0;
   }
 }

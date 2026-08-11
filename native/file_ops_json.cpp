@@ -209,6 +209,31 @@ static const char* file_ops_json_readlink_impl(const char* path) {
     return file_ops_readlink(path);
 }
 
+char* file_ops_json_get_recent_files(const char* dir, int days, int max_results) {
+    JsonBuilder* jb = jb_new();
+    SearchResultList* r = file_ops_get_recent_files(dir, days, max_results);
+    if (!r) { jb_append(jb, "{\"error\":\"null\",\"items\":[]}"); return jb_finish(jb); }
+    jb_append(jb, "{\"error\":\"\",\"items\":[");
+    for (int i = 0; i < r->count; i++) {
+        if (i > 0) jb_append(jb, ",");
+        jb_append(jb, "{\"path\":"); jb_append_esc(jb, r->items[i].path);
+        jb_append(jb, ",\"name\":"); jb_append_esc(jb, r->items[i].name);
+        jb_append(jb, ",\"type\":"); jb_append_int(jb, r->items[i].type);
+        jb_append(jb, ",\"size\":"); jb_append_int(jb, r->items[i].size);
+        jb_append(jb, ",\"modifiedTime\":"); jb_append_int(jb, r->items[i].modified_time);
+        jb_append(jb, "}");
+    }
+    jb_append(jb, "]}"); file_ops_free_search_results(r); return jb_finish(jb);
+}
+
+int file_ops_json_encrypt_file(const char* src, const char* dst, const char* password, char* error, int error_size) {
+    return file_ops_encrypt_file(src, dst, password, error, error_size);
+}
+
+int file_ops_json_decrypt_file(const char* src, const char* dst, const char* password, char* error, int error_size) {
+    return file_ops_decrypt_file(src, dst, password, error, error_size);
+}
+
 char* file_ops_json_realpath(const char* path) {
     JsonBuilder* jb = jb_new();
     const char* rp = file_ops_json_realpath_impl(path);
@@ -227,5 +252,138 @@ char* file_ops_json_readlink(const char* path) {
     return jb_finish(jb);
 }
 
+// ============================================================
+// File content I/O (for viewers)
+// ============================================================
+
+char* file_ops_json_read_text_file(const char* path) {
+    JsonBuilder* jb = jb_new();
+    char* text = file_ops_read_file_text(path);
+    if (!text) {
+        jb_append(jb, "{\"error\":\"failed to read file\"}");
+        return jb_finish(jb);
+    }
+    jb_append(jb, "{\"error\":\"\",\"text\":");
+    jb_append_esc(jb, text);
+    free(text);
+    jb_append(jb, "}");
+    return jb_finish(jb);
+}
+
+int file_ops_json_write_text_file(const char* path, const char* content, char* error, int error_size) {
+    return file_ops_write_file_text(path, content, error, error_size);
+}
+
+char* file_ops_json_read_csv_file(const char* path) {
+    JsonBuilder* jb = jb_new();
+    char* text = file_ops_read_file_text(path);
+    if (!text) {
+        jb_append(jb, "{\"error\":\"failed to read file\",\"rows\":[]}");
+        return jb_finish(jb);
+    }
+    jb_append(jb, "{\"error\":\"\",\"rows\":[");
+    const char* p = text;
+    int row_count = 0;
+    while (*p) {
+        if (row_count > 0) jb_append(jb, ",");
+        jb_append(jb, "[");
+        int col_count = 0;
+        while (*p && *p != '\n') {
+            if (col_count > 0) jb_append(jb, ",");
+            // Find end of field
+            const char* start = p;
+            while (*p && *p != ',' && *p != '\n') p++;
+            // Temporarily null-terminate
+            char save = *p;
+            *(char*)p = '\0';
+            jb_append_esc(jb, start);
+            *(char*)p = save;
+            col_count++;
+            if (*p == ',') p++;
+        }
+        jb_append(jb, "]");
+        row_count++;
+        if (*p == '\n') p++;
+    }
+    free(text);
+    jb_append(jb, "]}");
+    return jb_finish(jb);
+}
+
+char* file_ops_json_read_hex_chunk(const char* path, long long offset, int length) {
+    JsonBuilder* jb = jb_new();
+    int actual_len = 0;
+    unsigned char* data = file_ops_read_file_chunk(path, offset, length, &actual_len);
+    if (!data || actual_len == 0) {
+        jb_append(jb, "{\"error\":\"read failed\",\"hex\":\"\",\"ascii\":\"\",\"length\":0}");
+        if (data) free(data);
+        return jb_finish(jb);
+    }
+    jb_append(jb, "{\"error\":\"\",\"hex\":\"");
+    // Build hex string
+    for (int i = 0; i < actual_len; i++) {
+        char buf[4];
+        snprintf(buf, sizeof(buf), "%02x", data[i]);
+        jb_append(jb, buf);
+        if (i < actual_len - 1) jb_append(jb, " ");
+    }
+    jb_append(jb, "\",\"ascii\":\"");
+    for (int i = 0; i < actual_len; i++) {
+        unsigned char c = data[i];
+        if (c >= 0x20 && c <= 0x7E) {
+            char buf[2] = { (char)c, 0 };
+            jb_append(jb, buf);
+        } else {
+            jb_append(jb, ".");
+        }
+    }
+    char lenbuf[32];
+    snprintf(lenbuf, sizeof(lenbuf), "\",\"length\":%d}", actual_len);
+    jb_append(jb, lenbuf);
+    free(data);
+    return jb_finish(jb);
+}
+
+static const char b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+char* file_ops_json_read_image_as_base64(const char* path) {
+    JsonBuilder* jb = jb_new();
+    int data_len = 0;
+    unsigned char* data = file_ops_read_file_bytes(path, &data_len);
+    if (!data || data_len == 0) {
+        jb_append(jb, "{\"error\":\"read failed\",\"base64\":\"\"}");
+        if (data) free(data);
+        return jb_finish(jb);
+    }
+    // Base64 encode
+    int out_len = 4 * ((data_len + 2) / 3);
+    char* b64 = (char*)malloc(out_len + 1);
+    if (!b64) {
+        jb_append(jb, "{\"error\":\"alloc failed\",\"base64\":\"\"}");
+        free(data);
+        return jb_finish(jb);
+    }
+    int i = 0, j = 0;
+    while (i < data_len) {
+        unsigned int a = i < data_len ? data[i++] : 0;
+        unsigned int b = i < data_len ? data[i++] : 0;
+        unsigned int c = i < data_len ? data[i++] : 0;
+        unsigned int triple = (a << 16) | (b << 8) | c;
+        b64[j++] = b64_table[(triple >> 18) & 0x3F];
+        b64[j++] = b64_table[(triple >> 12) & 0x3F];
+        b64[j++] = (i > data_len + 1) ? '=' : b64_table[(triple >> 6) & 0x3F];
+        b64[j++] = (i > data_len) ? '=' : b64_table[triple & 0x3F];
+    }
+    b64[j] = '\0';
+    jb_append(jb, "{\"error\":\"\",\"base64\":\"");
+    jb_append(jb, b64);
+    jb_append(jb, "\",\"length\":");
+    char lenbuf[32];
+    snprintf(lenbuf, sizeof(lenbuf), "%d}", data_len);
+    jb_append(jb, lenbuf);
+    free(b64);
+    free(data);
+    return jb_finish(jb);
+}
 
 }
