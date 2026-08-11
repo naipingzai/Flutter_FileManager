@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
-/// 文本编辑器，对应 Android viewer/text/TextEditorActivity.kt/TextEditorFragment.kt
+/// 文本编辑器
 class TextEditorPage extends StatefulWidget {
   final String path;
   const TextEditorPage({super.key, required this.path});

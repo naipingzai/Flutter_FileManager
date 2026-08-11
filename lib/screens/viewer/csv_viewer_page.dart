@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
-/// CSV 查看器，对应 Android viewer/csv/CsvViewerActivity.kt
+/// CSV 查看器
 class CsvViewerPage extends StatefulWidget {
   final String path;
   const CsvViewerPage({super.key, required this.path});

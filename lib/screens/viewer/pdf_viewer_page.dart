@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
-/// PDF 查看器，对应 Android viewer/pdf/PdfViewerActivity.kt
+/// PDF 查看器
 class PdfViewerPage extends StatelessWidget {
   final String path;
   const PdfViewerPage({super.key, required this.path});

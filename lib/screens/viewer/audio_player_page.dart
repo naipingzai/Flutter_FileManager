@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
-/// 音频播放器，对应 Android viewer/audio/AudioPlayerActivity.kt
+/// 音频播放器
 class AudioPlayerPage extends StatelessWidget {
   final String path;
   const AudioPlayerPage({super.key, required this.path});

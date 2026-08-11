@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
-/// 电子书查看器，对应 Android viewer/ebook/EbookViewerActivity.kt
+/// 电子书查看器
 class EbookViewerPage extends StatelessWidget {
   final String path;
   const EbookViewerPage({super.key, required this.path});

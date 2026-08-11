@@ -1,4 +1,12 @@
 import 'dart:io';
+import 'package:flutter_file_manager/screens/viewer/audio_player_page.dart';
+import 'package:flutter_file_manager/screens/viewer/csv_viewer_page.dart';
+import 'package:flutter_file_manager/screens/viewer/ebook_viewer_page.dart';
+import 'package:flutter_file_manager/screens/viewer/image_viewer_page.dart';
+import 'package:flutter_file_manager/screens/viewer/pdf_viewer_page.dart';
+import 'package:flutter_file_manager/screens/viewer/text_editor_page.dart';
+import 'package:flutter_file_manager/screens/viewer/video_player_page.dart';
+
 import '../services/file_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -680,6 +688,64 @@ class _FileManagerView extends StatelessWidget {
     );
   }
 
+  void _openEntry(
+    BuildContext context,
+    FileManagerState state,
+    FileEntry entry,
+  ) {
+    final type = state.fileService.determineViewer(entry.path);
+    switch (type) {
+      case FileViewerType.text:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TextEditorPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.image:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ImageViewerPage(initialPath: entry.path),
+          ),
+        );
+        break;
+      case FileViewerType.csv:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => CsvViewerPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.video:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => VideoPlayerPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.audio:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AudioPlayerPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.pdf:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => PdfViewerPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.ebook:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => EbookViewerPage(path: entry.path)),
+        );
+        break;
+      default:
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('无法在应用内打开: ${entry.name}')));
+    }
+  }
+
   void _handleTap(
     BuildContext context,
     FileManagerState state,
@@ -689,6 +755,8 @@ class _FileManagerView extends StatelessWidget {
       state.toggleSelection(entry.path);
     } else if (entry.isDirectory) {
       state.navigateTo(entry.path);
+    } else {
+      _openEntry(context, state, entry);
     }
   }
 

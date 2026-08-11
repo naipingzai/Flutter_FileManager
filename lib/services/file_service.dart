@@ -207,7 +207,11 @@ class HexChunkResult {
   final String hex;
   final String ascii;
   final int length;
-  HexChunkResult({required this.hex, required this.ascii, required this.length});
+  HexChunkResult({
+    required this.hex,
+    required this.ascii,
+    required this.length,
+  });
 }
 
 /// Pure C++ backend file service. All operations go through FFI to libfile_ops.so.
@@ -523,10 +527,70 @@ class FileService {
     final name = getFileName(path).toLowerCase();
     final ext = name.contains('.') ? '.${name.split('.').last}' : '';
 
-    const imageExts = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico', '.tiff', '.tif', '.heic', '.avif'};
-    const videoExts = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.3gp'};
-    const audioExts = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a', '.opus'};
-    const textExts = {'.txt', '.log', '.md', '.json', '.xml', '.yaml', '.yml', '.toml', '.ini', '.conf', '.css', '.js', '.py', '.rs', '.go', '.dart', '.sh', '.bat', '.c', '.cpp', '.h', '.hpp', '.java', '.kt', '.swift', '.html', '.htm'};
+    const imageExts = {
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.gif',
+      '.bmp',
+      '.webp',
+      '.svg',
+      '.ico',
+      '.tiff',
+      '.tif',
+      '.heic',
+      '.avif',
+    };
+    const videoExts = {
+      '.mp4',
+      '.avi',
+      '.mkv',
+      '.mov',
+      '.wmv',
+      '.flv',
+      '.webm',
+      '.m4v',
+      '.3gp',
+    };
+    const audioExts = {
+      '.mp3',
+      '.wav',
+      '.flac',
+      '.aac',
+      '.ogg',
+      '.wma',
+      '.m4a',
+      '.opus',
+    };
+    const textExts = {
+      '.txt',
+      '.log',
+      '.md',
+      '.json',
+      '.xml',
+      '.yaml',
+      '.yml',
+      '.toml',
+      '.ini',
+      '.conf',
+      '.css',
+      '.js',
+      '.py',
+      '.rs',
+      '.go',
+      '.dart',
+      '.sh',
+      '.bat',
+      '.c',
+      '.cpp',
+      '.h',
+      '.hpp',
+      '.java',
+      '.kt',
+      '.swift',
+      '.html',
+      '.htm',
+    };
 
     if (imageExts.contains(ext)) return FileViewerType.image;
     if (videoExts.contains(ext)) return FileViewerType.video;
@@ -582,7 +646,9 @@ class FileService {
       final j = jsonDecode(str);
       if (j['error'] != null && j['error'] != '') return [];
       final rows = j['rows'] as List;
-      return rows.map((row) => (row as List).map((c) => c.toString()).toList()).toList();
+      return rows
+          .map((row) => (row as List).map((c) => c.toString()).toList())
+          .toList();
     } catch (_) {
       return [];
     } finally {

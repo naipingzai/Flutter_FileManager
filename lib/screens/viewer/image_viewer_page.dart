@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
-/// 图片查看器，对应 Android viewer/image/ImageViewerActivity.kt
+/// 图片查看器
 class ImageViewerPage extends StatefulWidget {
   final String initialPath;
   final List<String> paths;
@@ -52,9 +52,7 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
         itemCount: _paths.length,
         itemBuilder: (ctx, i) {
           return InteractiveViewer(
-            child: Center(
-              child: _CppImageWidget(path: _paths[i]),
-            ),
+            child: Center(child: _CppImageWidget(path: _paths[i])),
           );
         },
         onPageChanged: (i) => setState(() {}),

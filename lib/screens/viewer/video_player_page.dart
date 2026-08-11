@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
-/// 视频播放器，对应 Android viewer/video/VideoViewerActivity.kt
+/// 视频播放器
 class VideoPlayerPage extends StatelessWidget {
   final String path;
   const VideoPlayerPage({super.key, required this.path});
