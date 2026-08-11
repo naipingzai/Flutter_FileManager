@@ -55,7 +55,8 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
 # Native C++ library for file operations
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native" "${CMAKE_BINARY_DIR}/native")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native/file_ops" "${CMAKE_BINARY_DIR}/native/file_ops")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native/text_ops" "${CMAKE_BINARY_DIR}/native/text_ops")
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
