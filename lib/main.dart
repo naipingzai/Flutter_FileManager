@@ -19,7 +19,7 @@ class AdvanceFileManagerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Advance File Manager',
+      title: 'Flutter File Manager',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: Colors.blue,

@@ -1,3 +1,4 @@
+import 'dart:io';
 import '../services/file_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -149,7 +150,7 @@ class _FileManagerView extends StatelessWidget {
               children: [
                 Icon(Icons.folder_special, size: 48, color: theme.colorScheme.onPrimaryContainer),
                 const SizedBox(height: 8),
-                Text('Advance File Manager', style: TextStyle(
+                Text('Flutter File Manager', style: TextStyle(
                   color: theme.colorScheme.onPrimaryContainer,
                   fontSize: 18, fontWeight: FontWeight.bold,
                 )),
@@ -186,8 +187,15 @@ class _FileManagerView extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text('快速访问', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
           ),
-          _quickAccessItem(context, state, Icons.home, '主目录', '/home'),
-          _quickAccessItem(context, state, Icons.folder, '根目录', '/'),
+          _quickAccessItem(context, state, Icons.home, '主目录', _platformHomeDir()),
+          _quickAccessItem(context, state, Icons.folder, '根目录', _platformRootDir()),
+          if (_platformIsLinux()) ...[
+            _quickAccessItem(context, state, Icons.download, '下载', '${_platformHomeDir()}/Downloads'),
+            _quickAccessItem(context, state, Icons.description, '文档', '${_platformHomeDir()}/Documents'),
+            _quickAccessItem(context, state, Icons.image, '图片', '${_platformHomeDir()}/Pictures'),
+            _quickAccessItem(context, state, Icons.music_note, '音乐', '${_platformHomeDir()}/Music'),
+            _quickAccessItem(context, state, Icons.movie, '视频', '${_platformHomeDir()}/Videos'),
+          ],
           const Divider(),
           // Bookmarks
           Padding(
@@ -570,6 +578,22 @@ class _FileManagerView extends StatelessWidget {
       ),
     );
   }
+
+  String _platformHomeDir() {
+    if (Platform.isLinux) return '/home';
+    if (Platform.isAndroid) return '/storage/emulated/0';
+    if (Platform.isIOS) return '.';  // iOS sandbox
+    return '/';
+  }
+
+  String _platformRootDir() {
+    if (Platform.isLinux) return '/';
+    if (Platform.isAndroid) return '/';
+    if (Platform.isIOS) return '.';  // iOS sandbox
+    return '/';
+  }
+
+  bool _platformIsLinux() => Platform.isLinux;
 
   void _deleteSelected(BuildContext context, FileManagerState state) {
     final selected = state.currentTab.entries.where((e) => state.currentTab.selectedPaths.contains(e.path)).toList();

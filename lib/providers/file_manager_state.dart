@@ -13,6 +13,7 @@ class TabState {
   bool showHidden;
   SortMode sortMode;
   bool sortAscending;
+  bool directoriesFirst;
   ViewMode viewMode;
   Set<String> selectedPaths;
   String searchQuery;
@@ -29,6 +30,7 @@ class TabState {
     this.showHidden = false,
     this.sortMode = SortMode.name,
     this.sortAscending = true,
+    this.directoriesFirst = true,
     this.viewMode = ViewMode.list,
     Set<String>? selectedPaths,
     this.searchQuery = '',
@@ -166,6 +168,13 @@ class FileManagerState extends ChangeNotifier {
   void toggleHidden() {
     currentTab.showHidden = !currentTab.showHidden;
     loadCurrentTab();
+  }
+
+  void toggleDirectoriesFirst() {
+    final tab = currentTab;
+    tab.directoriesFirst = !tab.directoriesFirst;
+    _sortEntries(tab.entries, tab.sortMode, tab.sortAscending);
+    notifyListeners();
   }
 
   void setSortMode(SortMode mode) {

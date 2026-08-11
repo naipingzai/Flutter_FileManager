@@ -13,7 +13,7 @@ class AboutPage extends StatelessWidget {
         children: [
           Center(child: Icon(Icons.folder_special, size: 80, color: theme.colorScheme.primary)),
           const SizedBox(height: 16),
-          Center(child: Text('Advance File Manager', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold))),
+          Center(child: Text('Flutter File Manager', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold))),
           const SizedBox(height: 4),
           Center(child: Text('Flutter + C++ 版本', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline))),
           const SizedBox(height: 4),
@@ -68,7 +68,7 @@ class AboutPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Center(child: Text('Copyright (C) 2026 advancefilemanager', style: theme.textTheme.bodySmall)),
+          Center(child: Text('Copyright (C) 2026 flutter-file-manager', style: theme.textTheme.bodySmall)),
           Center(child: Text('Licensed under GPL-3.0', style: theme.textTheme.bodySmall)),
         ],
       ),
