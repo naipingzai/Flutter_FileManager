@@ -2,3 +2,18 @@ build/
 .dart_tool/
 *.iml
 .idea/
+
+# FFmpeg build artifacts (由 build_ffmpeg_*.sh 编译生成，不应入仓)
+native/media/third_party/build-src-*/
+native/media/third_party/build-android-*/
+native/media/third_party/ffmpeg/build/
+native/media/third_party/ffmpeg/build-*/
+native/media/third_party/ffmpeg/config.h
+native/media/third_party/ffmpeg/Makefile
+native/media/third_party/ffmpeg/*.o
+native/media/third_party/ffmpeg/*.d
+native/media/third_party/ffmpeg/**/*.o
+native/media/third_party/ffmpeg/**/*.d
+
+# native build artifacts
+native/text_ops/out/
