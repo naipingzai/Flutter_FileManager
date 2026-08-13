@@ -67,41 +67,20 @@ Dart 侧对应绑定：`lib/native/core_bindings.dart`（`CoreNative`），服�
 |----|------|------|----------|
 | `stb_image` | v2.28 | 图片解码 | header-only，`STB_IMAGE_IMPLEMENTATION` 编译定义 |
 | `miniz` | 2.2.0 | EPUB / ZIP 压缩包 | 源码编入静态库（miniz.c + miniz_zip/tdef/tinfl.c） |
-| `FFmpeg` | 4.4.4 | 视频 / 音频解码 | 下载源码 → `configure` + `make` + `make install` → 链接 `.a` |
+| `FFmpeg` | 系统/预编译 | 视频 / 音频解码 | 各平台链接**预编译** FFmpeg，不本地编译源码 |
 
-### FFmpeg 按平台编译规则
-各 `media/platform/<plat>/CMakeLists.txt` 独立提供 FFmpeg 的 configure 参数与链接方式。
-可用 CMake 选项 **`MEDIA_ENABLE_FFMPEG`** 统一开关（默认值因平台而异，见下表）：
+### FFmpeg 按平台集成（均使用预编译库，不本地 configure/make）
 
-| 平台 | 默认 | 说明 |
-|------|------|------|
-| Linux | **ON** | 已验证：本机 gcc 编译，功能完整 |
-| iOS/macOS | OFF | FFmpeg 交叉编译尚未在本工程验证，默认关保证可构建 |
-| Android | OFF | toolchain prefix 交叉编译未验证，默认关保证 APK 可构建 |
-| Windows | OFF | mingw `.a` → MSVC 链接未打通，默认关保证 EXE 可构建 |
+| 平台 | FFmpeg 来源 | 链接方式 |
+|------|------|----------|
+| Linux | 系统包 `libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev` | `pkg-config`（`PkgConfig::FFMPEG`） |
+| Windows | CI 下载预编译 MSVC 库 | `FFMPEG_DIR/lib/av*.lib` |
+| Android | CI 下载预编译各 ABI 库 | `FFMPEG_DIR/lib/<abi>/libav*.a` |
+| iOS/macOS | CI 下载预编译库 | `FFMPEG_DIR/lib/libav*.a`（xcconfig force_load） |
 
-关闭 FFmpeg 时，`media` 仍导出 `media_video_*` / `media_decode_audio` / `media_audio_output_*`
-桩符号，Dart FFI 可无条件绑定、不崩溃；对应 viewer 显示"当前平台不支持解码"。
+`FFMPEG_DIR` 优先取 CMake `-D`，其次环境变量 `FFMPEG_DIR`。目录须含 `include/` 与对应 `lib/`。
 
-- **Linux**：本机 gcc 编译，`--cc` 缺省；链接 `libavformat/libavcodec/libavutil/libswscale/libswresample.a`。
-- **Android**：按 `ANDROID_ABI`（arm64-v8a / armeabi-v7a / x86_64 / x86）选择 host triplet，
-  `--cc=${ANDROID_TOOLCHAIN_PREFIX}clang` 交叉编译；静态库循环依赖用 `--start-group/--end-group` 包裹。
-- **Apple（macOS/iOS）**：clang；iOS 用 `--host=aarch64-apple-darwin --cc=clang --as=clang --ld=clang` 交叉编译。
-- **Windows**：需 mingw/LLVM 工具链（GCC ABI），configure 由 CI 脚本执行，产物 `.a` 直接链接。
-
-FFmpeg 均裁剪为**仅解码器 + 文件协议**（`--disable-encoders --disable-network --disable-avdevice` 等），
-大幅缩小体积、去掉 x86 asm 以提升可移植性。
-
-### 产物目录
-第三方下载与构建统一输出到 `CMAKE_BINARY_DIR/_thirdparty_build/`（FFmpeg 输出到
-`_ffmpeg_build_<平台>`），按平台/ABI 隔离，避免互相污染。
-
-## 四、构建
-
-核心库可独立于 FFmpeg 构建（见 `scripts/build_core.sh`）；完整 media（含 FFmpeg）需联网下载源码。
-
-- Linux 依赖：`cmake`、`g++`、`make`、`tar`、`curl`（或 `wget`）。
-- media/FFmpeg 额外依赖：`libssl-dev`、`zlib1g-dev`、`libasound2-dev`（Linux 音频）。
+`media.cpp` 通过 `LIBAVUTIL_VERSION_MAJOR` 判断，兼容 FFmpeg 5.1+ 的 `ch_layout` API 与旧版 `channels` API。
 
 ```bash
 # 只构建 core（无需 FFmpeg）

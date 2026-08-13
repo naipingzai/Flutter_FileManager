@@ -24,7 +24,6 @@ set(_THIRDPARTY_DOWNLOAD_DIR
     CACHE PATH "Third-party sources/build dir")
 
 # 第三方库版本（与上游兼容）
-set(_THIRDPARTY_VERSION_FFMPEG "4.4.4" CACHE STRING "FFmpeg version")
 set(_THIRDPARTY_VERSION_MINIZ  "2.2.0" CACHE STRING "miniz version (2.x = 单文件实现)")
 set(_THIRDPARTY_VERSION_STB    "master" CACHE STRING "stb_image ref (branch/commit)")
 
@@ -133,59 +132,9 @@ function(thirdparty_setup_stb_image)
 endfunction()
 
 # ============================================================
-# FFmpeg: 视频/音频解码
+# FFmpeg：不在此处下载/编译源码。各平台链接预编译 FFmpeg：
+#   - Linux:    系统包 (libavformat-dev 等) 经 pkg-config
+#   - Windows:  CI 下载预编译 MSVC 库 (FFMPEG_DIR)
+#   - Android:  CI 下载预编译各 ABI 库 (FFMPEG_DIR/<abi>)
+#   - Apple:    CI 下载预编译 xcframework (FFMPEG_DIR)
 # ============================================================
-function(thirdparty_setup_ffmpeg PLATFORM_OUT_VAR)
-    set(_FFMPEG_DIR "${_THIRDPARTY_DOWNLOAD_DIR}/ffmpeg-${_THIRDPARTY_VERSION_FFMPEG}")
-    if(NOT EXISTS "${_FFMPEG_DIR}/configure")
-        # 优先使用 GitHub 镜像（比 ffmpeg.org 更稳定），tag 为 n<version>
-        _thirdparty_download(
-            "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${_THIRDPARTY_VERSION_FFMPEG}.tar.gz"
-            "${_THIRDPARTY_DOWNLOAD_DIR}/ffmpeg.tar.gz")
-        _thirdparty_extract("${_THIRDPARTY_DOWNLOAD_DIR}/ffmpeg.tar.gz" "${_FFMPEG_DIR}")
-    endif()
-    set(${PLATFORM_OUT_VAR} "${_FFMPEG_DIR}" PARENT_SCOPE)
-endfunction()
-
-# 调用 configure + make + make install
-macro(thirdparty_configure_ffmpeg FFMPEG_DIR FFMPEG_BUILD_DIR FFMPEG_CONFIGURE_ARGS)
-    if(NOT EXISTS "${FFMPEG_BUILD_DIR}/lib/libavformat.a")
-        message(STATUS "[thirdparty] 配置 FFmpeg（耗时较长）...")
-        execute_process(
-            COMMAND "${FFMPEG_DIR}/configure"
-                --prefix=${FFMPEG_BUILD_DIR}
-                --enable-static --disable-shared
-                ${FFMPEG_CONFIGURE_ARGS}
-            WORKING_DIRECTORY "${FFMPEG_DIR}"
-            RESULT_VARIABLE _cfg)
-        if(NOT _cfg EQUAL 0)
-            message(FATAL_ERROR "[thirdparty] FFmpeg configure 失败 (rc=${_cfg})")
-        endif()
-        message(STATUS "[thirdparty] 编译 FFmpeg...")
-        # CMAKE_BUILD_PARALLEL_LEVEL 可能未设置，默认取 CPU 核数，避免裸 `make -j`
-        if(DEFINED CMAKE_BUILD_PARALLEL_LEVEL AND NOT CMAKE_BUILD_PARALLEL_LEVEL STREQUAL "")
-            set(_FFMPEG_JOBS "-j${CMAKE_BUILD_PARALLEL_LEVEL}")
-        else()
-            cmake_host_system_information(RESULT _FFMPEG_CORES QUERY NUMBER_OF_LOGICAL_CORES)
-            if(_FFMPEG_CORES LESS 1)
-                set(_FFMPEG_CORES 2)
-            endif()
-            set(_FFMPEG_JOBS "-j${_FFMPEG_CORES}")
-        endif()
-        execute_process(
-            COMMAND make ${_FFMPEG_JOBS}
-            WORKING_DIRECTORY "${FFMPEG_DIR}"
-            RESULT_VARIABLE _mk)
-        if(NOT _mk EQUAL 0)
-            message(FATAL_ERROR "[thirdparty] FFmpeg make 失败 (rc=${_mk})")
-        endif()
-        message(STATUS "[thirdparty] 安装 FFmpeg...")
-        execute_process(
-            COMMAND make install
-            WORKING_DIRECTORY "${FFMPEG_DIR}"
-            RESULT_VARIABLE _inst)
-        if(NOT _inst EQUAL 0)
-            message(FATAL_ERROR "[thirdparty] FFmpeg make install 失败 (rc=${_inst})")
-        endif()
-    endif()
-endmacro()

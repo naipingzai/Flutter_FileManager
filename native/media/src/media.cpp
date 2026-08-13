@@ -30,9 +30,20 @@ extern "C" {
 #include <libavutil/imgutils.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/opt.h>
+#include <libavutil/version.h>
+#include <libavcodec/version.h>
+#include <libavformat/version.h>
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
 }
+
+// AVChannelLayout / ch_layout 自 FFmpeg 5.1 (libavutil 57.28) 引入
+#if defined(LIBAVUTIL_VERSION_MAJOR) && \
+    (LIBAVUTIL_VERSION_MAJOR > 57 || (LIBAVUTIL_VERSION_MAJOR == 57 && LIBAVUTIL_VERSION_MINOR >= 28))
+#define MEDIA_HAS_CHLAYOUT 1
+#else
+#define MEDIA_HAS_CHLAYOUT 0
+#endif
 #endif
 
 // ============================================================
@@ -488,7 +499,9 @@ static MediaCtx* media_open_mem(const unsigned char* data, int len) {
     if (!m->avio) { free(m); return NULL; }
     // 标记为可跳转，让 FFmpeg 正确处理 EOF/size 信息
     m->avio->seekable = AVIO_SEEKABLE_NORMAL;
-    m->avio->maxsize = m->mem.len;
+#if !defined(LIBAVFORMAT_VERSION_MAJOR) || LIBAVFORMAT_VERSION_MAJOR < 61
+    m->avio->maxsize = m->mem.len; // FFmpeg 7 起移除该字段
+#endif
     m->fmt_ctx = avformat_alloc_context();
     m->fmt_ctx->pb = m->avio;
     m->fmt_ctx->flags |= AVFMT_FLAG_CUSTOM_IO;
@@ -742,17 +755,29 @@ char* media_decode_audio(const unsigned char* data, int len) {
     }
 
     int out_rate = actx->sample_rate > 0 ? actx->sample_rate : 44100;
+#if MEDIA_HAS_CHLAYOUT
+    int out_ch = actx->ch_layout.nb_channels > 0 ? actx->ch_layout.nb_channels : 2;
+#else
     int out_ch = actx->channels > 0 ? actx->channels : 2;
-    int64_t in_layout = actx->channel_layout;
-    if (!in_layout) in_layout = av_get_default_channel_layout(actx->channels > 0 ? actx->channels : 2);
+#endif
 
     // swr：任意输入格式 → S16 交错
     SwrContext* swr = swr_alloc();
     if (!swr) { avcodec_free_context(&actx); media_video_close(m); return strdup_std("{\"error\":\"swr alloc\",\"base64\":\"\",\"sample_rate\":0,\"channels\":0,\"bits\":0,\"length\":0}"); }
+#if MEDIA_HAS_CHLAYOUT
+    av_opt_set_chlayout(swr, "in_channel_layout", &actx->ch_layout, 0);
+    AVChannelLayout out_layout;
+    av_channel_layout_default(&out_layout, out_ch);
+    av_opt_set_chlayout(swr, "out_channel_layout", &out_layout, 0);
+    av_channel_layout_uninit(&out_layout);
+#else
+    int64_t in_layout = actx->channel_layout;
+    if (!in_layout) in_layout = av_get_default_channel_layout(out_ch);
     av_opt_set_int(swr, "in_channel_layout", in_layout, 0);
+    av_opt_set_int(swr, "out_channel_layout", in_layout, 0);
+#endif
     av_opt_set_int(swr, "in_sample_rate", out_rate, 0);
     av_opt_set_sample_fmt(swr, "in_sample_fmt", actx->sample_fmt, 0);
-    av_opt_set_int(swr, "out_channel_layout", in_layout, 0);
     av_opt_set_int(swr, "out_sample_rate", out_rate, 0);
     av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
     if (swr_init(swr) < 0) {
@@ -778,7 +803,11 @@ char* media_decode_audio(const unsigned char* data, int len) {
                 int rret = avcodec_receive_frame(actx, frm);
                 if (rret == AVERROR(EAGAIN) || rret == AVERROR_EOF) break;
                 if (rret < 0) break;
+#if MEDIA_HAS_CHLAYOUT
+                int ch = frm->ch_layout.nb_channels > 0 ? frm->ch_layout.nb_channels : out_ch;
+#else
                 int ch = frm->channels > 0 ? frm->channels : out_ch;
+#endif
                 int out_samples = swr_get_out_samples(swr, frm->nb_samples);
                 if (out_samples <= 0) continue;
                 int obytes = av_samples_get_buffer_size(NULL, ch, out_samples, AV_SAMPLE_FMT_S16, 1);
@@ -802,7 +831,11 @@ char* media_decode_audio(const unsigned char* data, int len) {
     // 冲刷解码器尾部帧
     avcodec_send_packet(actx, NULL);
     while (avcodec_receive_frame(actx, frm) >= 0) {
+#if MEDIA_HAS_CHLAYOUT
+        int ch = frm->ch_layout.nb_channels > 0 ? frm->ch_layout.nb_channels : out_ch;
+#else
         int ch = frm->channels > 0 ? frm->channels : out_ch;
+#endif
         int out_samples = swr_get_out_samples(swr, frm->nb_samples);
         if (out_samples <= 0) continue;
         int obytes = av_samples_get_buffer_size(NULL, ch, out_samples, AV_SAMPLE_FMT_S16, 1);
