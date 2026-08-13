@@ -1,5 +1,5 @@
-import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
@@ -61,28 +61,58 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
   }
 }
 
-/// Widget that loads images through the C++ backend (base64 encoded).
-class _CppImageWidget extends StatelessWidget {
+/// 通过 media 静态库（stb_image）解码图片为 RGBA 并渲染。
+class _CppImageWidget extends StatefulWidget {
   final String path;
   const _CppImageWidget({required this.path});
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List?>(
-      future: Future(() {
-        final b64 = FileService().readImageAsBase64(path);
-        if (b64 == null || b64.isEmpty) return null;
-        return base64Decode(b64);
-      }),
-      builder: (ctx, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const CircularProgressIndicator(color: Colors.white);
-        }
-        if (snap.data == null) {
-          return const Icon(Icons.broken_image, color: Colors.white, size: 64);
-        }
-        return Image.memory(snap.data!, fit: BoxFit.contain);
-      },
+  State<_CppImageWidget> createState() => _CppImageWidgetState();
+}
+
+class _CppImageWidgetState extends State<_CppImageWidget> {
+  ui.Image? _image;
+  bool _loading = true;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final decoded = FileService().decodeImage(widget.path);
+    if (decoded == null) {
+      setState(() {
+        _loading = false;
+        _error = true;
+      });
+      return;
+    }
+    // 将 media 静态库解码的 RGBA 字节转为 ui.Image 渲染
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+      decoded.bytes,
+      decoded.width,
+      decoded.height,
+      ui.PixelFormat.rgba8888,
+      completer.complete,
     );
+    final img = await completer.future;
+    if (!mounted) return;
+    setState(() {
+      _image = img;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const CircularProgressIndicator(color: Colors.white);
+    if (_error || _image == null) {
+      return const Icon(Icons.broken_image, color: Colors.white, size: 64);
+    }
+    return RawImage(image: _image, fit: BoxFit.contain);
   }
 }

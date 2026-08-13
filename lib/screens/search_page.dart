@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import '../services/file_service.dart';
 import '../providers/file_manager_state.dart';
+import 'viewer/audio_player_page.dart';
+import 'viewer/csv_viewer_page.dart';
+import 'viewer/ebook_viewer_page.dart';
+import 'viewer/image_viewer_page.dart';
+import 'viewer/pdf_viewer_page.dart';
+import 'viewer/text_editor_page.dart';
+import 'viewer/video_player_page.dart';
 
 class SearchPage extends StatefulWidget {
   final FileManagerState state;
@@ -29,6 +36,60 @@ class _SearchPageState extends State<SearchPage> {
       setState(() { _results = results; _searching = false; });
     } catch (e) {
       setState(() { _results = []; _searching = false; });
+    }
+  }
+
+  void _openFile(BuildContext context, FileEntry entry) {
+    final type = widget.state.fileService.determineViewer(entry.path);
+    switch (type) {
+      case FileViewerType.text:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TextEditorPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.image:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ImageViewerPage(initialPath: entry.path),
+          ),
+        );
+        break;
+      case FileViewerType.csv:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => CsvViewerPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.video:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => VideoPlayerPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.audio:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AudioPlayerPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.pdf:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => PdfViewerPage(path: entry.path)),
+        );
+        break;
+      case FileViewerType.ebook:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => EbookViewerPage(path: entry.path)),
+        );
+        break;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('无法在应用内打开: ${entry.name}')),
+        );
     }
   }
 
@@ -100,6 +161,8 @@ class _SearchPageState extends State<SearchPage> {
                                 if (e.isDirectory) {
                                   Navigator.pop(context);
                                   widget.state.navigateTo(e.path);
+                                } else {
+                                  _openFile(context, e);
                                 }
                               },
                             );

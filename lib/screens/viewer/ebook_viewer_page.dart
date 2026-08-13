@@ -1,32 +1,64 @@
 import 'package:flutter/material.dart';
 import '../../services/file_service.dart';
 
-/// 电子书查看器
-class EbookViewerPage extends StatelessWidget {
+/// 电子书查看器（APP 内部渲染，使用 media 静态库 miniz 提取正文）
+class EbookViewerPage extends StatefulWidget {
   final String path;
   const EbookViewerPage({super.key, required this.path});
 
   @override
+  State<EbookViewerPage> createState() => _EbookViewerPageState();
+}
+
+class _EbookViewerPageState extends State<EbookViewerPage> {
+  String? _text;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final text = FileService().readEbookText(widget.path);
+    setState(() {
+      _text = text;
+      _loading = false;
+      if (text == null) _error = '无法解析电子书内容';
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final name = FileService.getFileName(path);
+    final name = FileService.getFileName(widget.path);
     return Scaffold(
       appBar: AppBar(title: Text(name)),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.book, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(name),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => FileService().openFile(path),
-              icon: const Icon(Icons.open_in_new),
-              label: const Text('使用系统阅读器打开'),
-            ),
-          ],
-        ),
-      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error,
+                        size: 64,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(_error!),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    _text ?? '',
+                    style: const TextStyle(fontSize: 16, height: 1.6),
+                  ),
+                ),
     );
   }
 }

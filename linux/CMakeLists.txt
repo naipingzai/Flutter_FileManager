@@ -54,15 +54,17 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
-# Native C++ library for file operations
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native/file_ops" "${CMAKE_BINARY_DIR}/native/file_ops")
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native/text_ops" "${CMAKE_BINARY_DIR}/native/text_ops")
+# Native C++ static libraries (base + platform separated)
+# 每个功能独立目录 + 独立 CMake，编译为静态库直接集成进 runner
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native/core" "${CMAKE_BINARY_DIR}/native/core")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native/media" "${CMAKE_BINARY_DIR}/native/media")
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
-# Ensure native library is built before the runner
-add_dependencies(${BINARY_NAME} file_ops)
+# Ensure native static libraries are built before the runner
+add_dependencies(${BINARY_NAME} core)
+add_dependencies(${BINARY_NAME} media)
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
@@ -101,10 +103,7 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
-# Install the native library
-install(TARGETS file_ops
-  LIBRARY DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-  COMPONENT Runtime)
+# 静态库直接集成进可执行文件，无需安装动态库
 
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)

@@ -1,0 +1,14 @@
+
+#include "Generated.xcconfig"
+
+# 链接 C++ 静态库（core/media/FFmpeg，force_load 保持全部符号供 FFI）
+OTHER_LDFLAGS=$(inherited) \
+  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/libcore.a \
+  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/libmedia.a \
+  -Wl,-force_load,$(PROJECT_DIR)/native/media/third_party/ffmpeg/ios/lib/libavformat.a \
+  -Wl,-force_load,$(PROJECT_DIR)/native/media/third_party/ffmpeg/ios/lib/libavcodec.a \
+  -Wl,-force_load,$(PROJECT_DIR)/native/media/third_party/ffmpeg/ios/lib/libavutil.a \
+  -Wl,-force_load,$(PROJECT_DIR)/native/media/third_party/ffmpeg/ios/lib/libswscale.a \
+  -Wl,-force_load,$(PROJECT_DIR)/native/media/third_party/ffmpeg/ios/lib/libswresample.a \
+  -Wl,-export_dynamic \
+  -lz -framework AudioToolbox -framework CoreFoundation

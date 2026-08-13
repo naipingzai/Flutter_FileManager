@@ -23,4 +23,19 @@ add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 
+# ============================================================
+# 链接 C++ 静态库（base + platform 分离，直接集成进可执行文件）
+# 使用 --whole-archive 强制包含所有符号，--export-dynamic 导出符号
+# 供 Dart FFI 通过 DynamicLibrary.process() 查找
+# ============================================================
+target_link_libraries(${BINARY_NAME} PRIVATE
+    -Wl,--whole-archive
+    core
+    media
+    -Wl,--no-whole-archive
+)
+
+# 导出所有符号到动态符号表，FFI lookup 需要
+target_link_options(${BINARY_NAME} PRIVATE -Wl,--export-dynamic)
+
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")

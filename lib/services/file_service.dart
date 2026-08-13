@@ -2,8 +2,10 @@
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
-import '../native/file_ops_bindings.dart';
+import '../native/core_bindings.dart';
+import '../native/media_ffi.dart';
 
 /// File viewer type for UI routing
 enum FileViewerType {
@@ -214,6 +216,18 @@ class HexChunkResult {
   });
 }
 
+/// 由 media 静态库（stb_image）解码后的图片数据。
+class DecodedImageData {
+  final Uint8List bytes; // RGBA 像素数据
+  final int width;
+  final int height;
+  DecodedImageData({
+    required this.bytes,
+    required this.width,
+    required this.height,
+  });
+}
+
 /// Pure C++ backend file service. All operations go through FFI to libfile_ops.so.
 /// No Dart-native fallback – the C++ library is the single source of truth.
 class FileService {
@@ -221,7 +235,9 @@ class FileService {
   factory FileService() => _instance;
   FileService._internal();
 
-  late final FileOpsNative _n = FileOpsNative();
+  late final CoreNative _n = CoreNative();
+  // media 静态库（图片/电子书/视频/音频解码）
+  late final MediaNative _media = MediaNative();
 
   // ---------- helpers ----------
 
@@ -603,10 +619,9 @@ class FileService {
   }
 
   Future<void> openFile(String path) async {
-    // On Linux, use xdg-open as a fallback
-    if (Platform.isLinux) {
-      await Process.run('xdg-open', [path]);
-    }
+    // 纯 APP 内部实现，不再调用系统外部能力
+    // 由调用方根据 determineViewer() 结果路由到内部 viewer
+    throw UnsupportedError('外部打开已禁用，请使用 APP 内部 viewer');
   }
 
   // ---------- file content I/O (for viewers) ----------
@@ -687,6 +702,91 @@ class FileService {
       calloc.free(pp);
     }
   }
+
+  /// 通用二进制读取：视频/音频/PDF/电子书等所有 viewer 用。
+  Uint8List? readFileData(String path) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => _n.readBinaryAsBase64(pp));
+      final j = jsonDecode(str);
+      if (j['error'] != null && j['error'] != '') return null;
+      final b64 = j['base64'] as String?;
+      if (b64 == null || b64.isEmpty) return null;
+      return base64Decode(b64);
+    } catch (_) {
+      return null;
+    } finally {
+      calloc.free(pp);
+    }
+  }
+
+  // 派生方法（语义清晰）
+  Uint8List? readVideoData(String path) => readFileData(path);
+  Uint8List? readAudioData(String path) => readFileData(path);
+  Uint8List? readPdfData(String path) => readFileData(path);
+  Uint8List? readEbookData(String path) => readFileData(path);
+
+  // ---------- media 静态库解码（图片/电子书） ----------
+
+  /// 用 media 静态库（stb_image）解码图片为 RGBA + 尺寸。
+  DecodedImageData? decodeImage(String path) {
+    final j = _media.decodeImageFileJson(path);
+    if (j == null || j['error'] != null && (j['error'] as String).isNotEmpty) {
+      return null;
+    }
+    final b64 = j['base64'] as String?;
+    if (b64 == null || b64.isEmpty) return null;
+    return DecodedImageData(
+      bytes: base64Decode(b64),
+      width: j['width'] ?? 0,
+      height: j['height'] ?? 0,
+    );
+  }
+
+  /// 用 media 静态库（miniz）提取 EPUB 正文。
+  String? readEbookText(String path) => _media.extractEbookText(path);
+
+  // ---------- 视频/音频解码 ----------
+
+  /// 用 media 静态库（FFmpeg）打开视频。
+  Pointer<Void>? openVideo(String path) => _media.openVideo(path);
+
+  /// 获取视频信息（width, height, duration, fps）。
+  Map<String, dynamic>? getVideoInfo(Pointer<Void> handle) =>
+      _media.getVideoInfo(handle);
+
+  /// 解码下一帧（base64 RGBA, width, height, timestamp）。
+  Map<String, dynamic>? nextVideoFrame(Pointer<Void> handle) =>
+      _media.nextVideoFrame(handle);
+
+  /// 跳转到指定时间戳（秒）。
+  bool seekVideo(Pointer<Void> handle, double timestamp) =>
+      _media.seekVideo(handle, timestamp);
+
+  /// 关闭视频句柄。
+  void closeVideo(Pointer<Void> handle) => _media.closeVideo(handle);
+
+  /// 用 media 静态库（FFmpeg）解码音频（完整 PCM，S16 交错）。
+  Map<String, dynamic>? decodeAudio(String path) =>
+      _media.decodeAudioFile(path);
+
+  // ---------- 音频输出（平台层：ALSA/AAudio/AudioQueue/WASAPI） ----------
+
+  /// 打开音频输出设备（采样率/声道/位深）。
+  Pointer<Void>? audioOutputOpen(int sampleRate, int channels, int bits) =>
+      _media.audioOutputOpen(sampleRate, channels, bits);
+
+  /// 播放 PCM 数据（阻塞直到播放完成）。
+  int audioOutputWrite(Pointer<Void> handle, Pointer<Uint8> pcm, int len) =>
+      _media.audioOutputWrite(handle, pcm, len);
+
+  /// 停止播放并清空缓冲。
+  void audioOutputStop(Pointer<Void> handle) =>
+      _media.audioOutputStop(handle);
+
+  /// 关闭音频输出设备。
+  void audioOutputClose(Pointer<Void> handle) =>
+      _media.audioOutputClose(handle);
 
   // ---------- encryption / decryption ----------
 
