@@ -3,7 +3,8 @@
  * Core file system operations using POSIX APIs
  */
 
-#include "core.h"
+#include "fs.h"
+#include "fs_internal.h"
 
 // ============================================================
 // 平台层：Windows 下引入 POSIX 兼容层，其他平台使用系统 POSIX。

@@ -3,17 +3,23 @@ build/
 *.iml
 .idea/
 
-# FFmpeg build artifacts (由 build_ffmpeg_*.sh 编译生成，不应入仓)
-native/media/third_party/build-src-*/
-native/media/third_party/build-android-*/
-native/media/third_party/ffmpeg/build/
-native/media/third_party/ffmpeg/build-*/
-native/media/third_party/ffmpeg/config.h
-native/media/third_party/ffmpeg/Makefile
-native/media/third_party/ffmpeg/*.o
-native/media/third_party/ffmpeg/*.d
-native/media/third_party/ffmpeg/**/*.o
-native/media/third_party/ffmpeg/**/*.d
+# 第三方依赖（由 fetch_thirdparty.cmake 在 CMake 配置阶段自动下载到 build/_thirdparty/）
+# 不提交到 git，避免：
+#   1. 仓库过大（FFmpeg 源码约 80MB，编译产物约 800MB）
+#   2. 跨平台 ABI 不兼容（Linux .a 无法在 Windows/macOS/iOS/Android 链接）
+#   3. 频繁更新引入 git 冲突
 
-# native build artifacts
+# FetchContent 下载目录（CMake 自动管理）
+build/_thirdparty/
+build/_ffmpeg_build_*/
+build/_miniz.tar.gz
+build/_stb.tar.gz
+build/_ffmpeg.tar.xz
+
+# Linux FFmpeg 编译产物（已移到 build/_ffmpeg_build_linux/）
+*.a
+*.o
+*.d
+
+# native 旧 build artifacts（已被新流程替代，保留规则防止误提交）
 native/text_ops/out/

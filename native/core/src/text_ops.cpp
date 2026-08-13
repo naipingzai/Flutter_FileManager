@@ -1,6 +1,6 @@
 // text_ops - 大文本文件高效读取
 // 打开时扫描建立行偏移索引，支持 O(1) 按行读取 + 按偏移读取
-#include "core.h"
+#include "fs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,18 +65,18 @@ bool build_line_index(TextOpsImpl* impl) {
 // ============================================================
 extern "C" {
 
-TextOpsHandle text_ops_create(void) {
+FsTextReader fs_text_create(void) {
     return new TextOpsImpl();
 }
 
-void text_ops_destroy(TextOpsHandle handle) {
+void fs_text_destroy(FsTextReader handle) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     if (!impl) return;
     if (impl->fp) fclose(impl->fp);
     delete impl;
 }
 
-int text_ops_open(TextOpsHandle handle, const char* path) {
+int fs_text_open(FsTextReader handle, const char* path) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     if (!impl || !path) return -1;
 
@@ -106,7 +106,7 @@ int text_ops_open(TextOpsHandle handle, const char* path) {
     return 0;
 }
 
-void text_ops_close(TextOpsHandle handle) {
+void fs_text_close(FsTextReader handle) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     if (!impl) return;
     if (impl->fp) {
@@ -118,22 +118,22 @@ void text_ops_close(TextOpsHandle handle) {
     impl->path.clear();
 }
 
-int text_ops_is_open(TextOpsHandle handle) {
+int fs_text_is_open(FsTextReader handle) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     return (impl && impl->fp) ? 1 : 0;
 }
 
-size_t text_ops_size(TextOpsHandle handle) {
+size_t fs_text_size(FsTextReader handle) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     return impl ? impl->file_size : 0;
 }
 
-const char* text_ops_path(TextOpsHandle handle) {
+const char* fs_text_path(FsTextReader handle) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     return (impl && !impl->path.empty()) ? impl->path.c_str() : "";
 }
 
-size_t text_ops_read(TextOpsHandle handle, size_t offset, size_t length,
+size_t fs_text_read(FsTextReader handle, size_t offset, size_t length,
                      unsigned char* buffer, size_t buffer_size) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     if (!impl || !impl->fp || !buffer || buffer_size == 0) return 0;
@@ -154,12 +154,12 @@ size_t text_ops_read(TextOpsHandle handle, size_t offset, size_t length,
     return rd;
 }
 
-size_t text_ops_line_count(TextOpsHandle handle) {
+size_t fs_text_line_count(FsTextReader handle) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     return impl ? impl->line_offsets.size() : 0;
 }
 
-size_t text_ops_read_line(TextOpsHandle handle, size_t line,
+size_t fs_text_read_line(FsTextReader handle, size_t line,
                           unsigned char* buffer, size_t buffer_size) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     if (!impl || !impl->fp || !buffer || buffer_size == 0) return 0;
@@ -189,7 +189,7 @@ size_t text_ops_read_line(TextOpsHandle handle, size_t line,
     return 0;
 }
 
-const char* text_ops_error(TextOpsHandle handle) {
+const char* fs_text_error(FsTextReader handle) {
     TextOpsImpl* impl = static_cast<TextOpsImpl*>(handle);
     return impl ? impl->error : "";
 }

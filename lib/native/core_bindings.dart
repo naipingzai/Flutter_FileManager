@@ -1,6 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 //
-// core - Unified native bindings (file_ops + text_ops 合并)
+// core - Unified native bindings (file_ops + fs_text 合并)
 // 通过 Dart FFI 调用 native/core 静态库（直接集成进可执行文件）
 import 'dart:ffi';
 import 'dart:io';
@@ -67,57 +67,57 @@ typedef MergeFilesDart = int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8
 // ====================  TEXT OPS BINDINGS  ====================
 // ============================================================
 
-typedef TextOpsCreateNative = Pointer<Void> Function();
-typedef TextOpsCreateDart = Pointer<Void> Function();
-typedef TextOpsDestroyNative = Void Function(Pointer<Void> handle);
-typedef TextOpsDestroyDart = void Function(Pointer<Void> handle);
-typedef TextOpsOpenNative = Int32 Function(Pointer<Void> handle, Pointer<Utf8> path);
-typedef TextOpsOpenDart = int Function(Pointer<Void> handle, Pointer<Utf8> path);
-typedef TextOpsCloseNative = Void Function(Pointer<Void> handle);
-typedef TextOpsCloseDart = void Function(Pointer<Void> handle);
-typedef TextOpsIsOpenNative = Int32 Function(Pointer<Void> handle);
-typedef TextOpsIsOpenDart = int Function(Pointer<Void> handle);
-typedef TextOpsSizeNative = Size Function(Pointer<Void> handle);
-typedef TextOpsSizeDart = int Function(Pointer<Void> handle);
-typedef TextOpsPathNative = Pointer<Utf8> Function(Pointer<Void> handle);
-typedef TextOpsPathDart = Pointer<Utf8> Function(Pointer<Void> handle);
-typedef TextOpsReadNative = Size Function(
+typedef FsTextCreateNative = Pointer<Void> Function();
+typedef FsTextCreateDart = Pointer<Void> Function();
+typedef FsTextDestroyNative = Void Function(Pointer<Void> handle);
+typedef FsTextDestroyDart = void Function(Pointer<Void> handle);
+typedef FsTextOpenNative = Int32 Function(Pointer<Void> handle, Pointer<Utf8> path);
+typedef FsTextOpenDart = int Function(Pointer<Void> handle, Pointer<Utf8> path);
+typedef FsTextCloseNative = Void Function(Pointer<Void> handle);
+typedef FsTextCloseDart = void Function(Pointer<Void> handle);
+typedef FsTextIsOpenNative = Int32 Function(Pointer<Void> handle);
+typedef FsTextIsOpenDart = int Function(Pointer<Void> handle);
+typedef FsTextSizeNative = Size Function(Pointer<Void> handle);
+typedef FsTextSizeDart = int Function(Pointer<Void> handle);
+typedef FsTextPathNative = Pointer<Utf8> Function(Pointer<Void> handle);
+typedef FsTextPathDart = Pointer<Utf8> Function(Pointer<Void> handle);
+typedef FsTextReadNative = Size Function(
   Pointer<Void> handle,
   Size offset,
   Size length,
   Pointer<Uint8> buffer,
   Size bufferSize,
 );
-typedef TextOpsReadDart = int Function(
+typedef FsTextReadDart = int Function(
   Pointer<Void> handle,
   int offset,
   int length,
   Pointer<Uint8> buffer,
   int bufferSize,
 );
-typedef TextOpsLineCountNative = Size Function(Pointer<Void> handle);
-typedef TextOpsLineCountDart = int Function(Pointer<Void> handle);
-typedef TextOpsReadLineNative = Size Function(
+typedef FsTextLineCountNative = Size Function(Pointer<Void> handle);
+typedef FsTextLineCountDart = int Function(Pointer<Void> handle);
+typedef FsTextReadLineNative = Size Function(
   Pointer<Void> handle,
   Size line,
   Pointer<Uint8> buffer,
   Size bufferSize,
 );
-typedef TextOpsReadLineDart = int Function(
+typedef FsTextReadLineDart = int Function(
   Pointer<Void> handle,
   int line,
   Pointer<Uint8> buffer,
   int bufferSize,
 );
-typedef TextOpsErrorNative = Pointer<Utf8> Function(Pointer<Void> handle);
-typedef TextOpsErrorDart = Pointer<Utf8> Function(Pointer<Void> handle);
+typedef FsTextErrorNative = Pointer<Utf8> Function(Pointer<Void> handle);
+typedef FsTextErrorDart = Pointer<Utf8> Function(Pointer<Void> handle);
 
 // ============================================================
 // ====================  CORE NATIVE CLASS  ====================
 // ============================================================
 
 /// Unified native bindings for the `core` static library.
-/// Combines file_ops (file system operations) + text_ops (large text file reader).
+/// Combines file_ops (file system operations) + fs_text (large text file reader).
 class CoreNative {
   static CoreNative? _instance;
   late final DynamicLibrary _lib;
@@ -166,23 +166,23 @@ class CoreNative {
   late final SplitFileDart splitFile;
   late final MergeFilesDart mergeFiles;
 
-  // ---- text_ops bindings ----
-  late final TextOpsCreateDart _textCreate;
-  late final TextOpsDestroyDart _textDestroy;
-  late final TextOpsOpenDart _textOpen;
-  late final TextOpsCloseDart _textClose;
-  late final TextOpsIsOpenDart _textIsOpen;
-  late final TextOpsSizeDart _textSize;
-  late final TextOpsPathDart _textPath;
-  late final TextOpsReadDart _textRead;
-  late final TextOpsLineCountDart _textLineCount;
-  late final TextOpsReadLineDart _textReadLine;
-  late final TextOpsErrorDart _textError;
+  // ---- fs_text bindings ----
+  late final FsTextCreateDart _textCreate;
+  late final FsTextDestroyDart _textDestroy;
+  late final FsTextOpenDart _textOpen;
+  late final FsTextCloseDart _textClose;
+  late final FsTextIsOpenDart _textIsOpen;
+  late final FsTextSizeDart _textSize;
+  late final FsTextPathDart _textPath;
+  late final FsTextReadDart _textRead;
+  late final FsTextLineCountDart _textLineCount;
+  late final FsTextReadLineDart _textReadLine;
+  late final FsTextErrorDart _textError;
 
   CoreNative._() {
     _lib = _loadLibrary();
     _bindFileOps();
-    _bindTextOps();
+    _bindFsText();
   }
 
   factory CoreNative() {
@@ -198,82 +198,82 @@ class CoreNative {
   }
 
   void _bindFileOps() {
-    listDirectory = _lib.lookupFunction<JsonListDirNative, JsonListDirDart>('file_ops_json_list_directory');
-    getFileInfo = _lib.lookupFunction<JsonGetInfoNative, JsonGetInfoDart>('file_ops_json_get_file_info');
-    searchFiles = _lib.lookupFunction<JsonSearchNative, JsonSearchDart>('file_ops_json_search_files');
-    computeHash = _lib.lookupFunction<JsonHashNative, JsonHashDart>('file_ops_json_compute_hash');
-    getDiskUsage = _lib.lookupFunction<JsonDiskNative, JsonDiskDart>('file_ops_json_get_disk_usage');
-    findDuplicates = _lib.lookupFunction<JsonFindNative, JsonFindDart>('file_ops_json_find_duplicates');
-    findEmptyFiles = _lib.lookupFunction<JsonFindNative, JsonFindDart>('file_ops_json_find_empty_files');
-    getHomeDir = _lib.lookupFunction<JsonGetStrNative, JsonGetStrDart>('file_ops_json_get_home_dir');
-    getRootDir = _lib.lookupFunction<JsonGetStrNative, JsonGetStrDart>('file_ops_json_get_root_dir');
-    freeJson = _lib.lookupFunction<FreeJsonNative, FreeJsonDart>('file_ops_free_json');
-    createDirectory = _lib.lookupFunction<OpWithErrNative, OpWithErrDart>('file_ops_json_create_directory');
-    createFile = _lib.lookupFunction<OpWithErrNative, OpWithErrDart>('file_ops_json_create_file');
-    deleteFile = _lib.lookupFunction<OpWithErrNative, OpWithErrDart>('file_ops_json_delete_file');
-    rename = _lib.lookupFunction<RenameNative, RenameDart>('file_ops_json_rename');
-    copyFile = _lib.lookupFunction<CopyMoveNative, CopyMoveDart>('file_ops_json_copy_file');
-    moveFile = _lib.lookupFunction<CopyMoveNative, CopyMoveDart>('file_ops_json_move_file');
-    exists = _lib.lookupFunction<ExistsNative, ExistsDart>('file_ops_json_exists');
-    isDirectoryFn = _lib.lookupFunction<ExistsNative, ExistsDart>('file_ops_json_is_directory');
-    getRecentFiles = _lib.lookupFunction<JsonRecentNative, JsonRecentDart>('file_ops_json_get_recent_files');
-    encryptFile = _lib.lookupFunction<EncryptDecryptNative, EncryptDecryptDart>('file_ops_json_encrypt_file');
-    decryptFile = _lib.lookupFunction<EncryptDecryptNative, EncryptDecryptDart>('file_ops_json_decrypt_file');
-    readTextFile = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_read_text_file');
-    writeTextFile = _lib.lookupFunction<WriteTextNative, WriteTextDart>('file_ops_json_write_text_file');
-    readCsvFile = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_read_csv_file');
-    readHexChunk = _lib.lookupFunction<JsonHexNative, JsonHexDart>('file_ops_json_read_hex_chunk');
-    readImageAsBase64 = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_read_image_as_base64');
-    readBinaryAsBase64 = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_read_binary_as_base64');
-    access = _lib.lookupFunction<AccessNative, AccessDart>('file_ops_json_access');
-    chown = _lib.lookupFunction<ChownNative, ChownDart>('file_ops_json_chown');
-    lchown = _lib.lookupFunction<ChownNative, ChownDart>('file_ops_json_lchown');
-    symlink = _lib.lookupFunction<SymlinkNative, SymlinkDart>('file_ops_json_symlink');
-    link = _lib.lookupFunction<LinkNative, LinkDart>('file_ops_json_link');
-    realpath = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_realpath');
-    readlink = _lib.lookupFunction<JsonPathNative, JsonPathDart>('file_ops_json_readlink');
+    listDirectory = _lib.lookupFunction<JsonListDirNative, JsonListDirDart>('fs_list_directory');
+    getFileInfo = _lib.lookupFunction<JsonGetInfoNative, JsonGetInfoDart>('fs_get_file_info');
+    searchFiles = _lib.lookupFunction<JsonSearchNative, JsonSearchDart>('fs_search_files');
+    computeHash = _lib.lookupFunction<JsonHashNative, JsonHashDart>('fs_compute_hash');
+    getDiskUsage = _lib.lookupFunction<JsonDiskNative, JsonDiskDart>('fs_get_disk_usage');
+    findDuplicates = _lib.lookupFunction<JsonFindNative, JsonFindDart>('fs_find_duplicates');
+    findEmptyFiles = _lib.lookupFunction<JsonFindNative, JsonFindDart>('fs_find_empty_files');
+    getHomeDir = _lib.lookupFunction<JsonGetStrNative, JsonGetStrDart>('fs_get_home_dir');
+    getRootDir = _lib.lookupFunction<JsonGetStrNative, JsonGetStrDart>('fs_get_root_dir');
+    freeJson = _lib.lookupFunction<FreeJsonNative, FreeJsonDart>('fs_free_json');
+    createDirectory = _lib.lookupFunction<OpWithErrNative, OpWithErrDart>('fs_create_directory');
+    createFile = _lib.lookupFunction<OpWithErrNative, OpWithErrDart>('fs_create_file');
+    deleteFile = _lib.lookupFunction<OpWithErrNative, OpWithErrDart>('fs_delete_file');
+    rename = _lib.lookupFunction<RenameNative, RenameDart>('fs_rename');
+    copyFile = _lib.lookupFunction<CopyMoveNative, CopyMoveDart>('fs_copy_file');
+    moveFile = _lib.lookupFunction<CopyMoveNative, CopyMoveDart>('fs_move_file');
+    exists = _lib.lookupFunction<ExistsNative, ExistsDart>('fs_exists');
+    isDirectoryFn = _lib.lookupFunction<ExistsNative, ExistsDart>('fs_is_directory');
+    getRecentFiles = _lib.lookupFunction<JsonRecentNative, JsonRecentDart>('fs_get_recent_files');
+    encryptFile = _lib.lookupFunction<EncryptDecryptNative, EncryptDecryptDart>('fs_encrypt_file');
+    decryptFile = _lib.lookupFunction<EncryptDecryptNative, EncryptDecryptDart>('fs_decrypt_file');
+    readTextFile = _lib.lookupFunction<JsonPathNative, JsonPathDart>('fs_read_text_file');
+    writeTextFile = _lib.lookupFunction<WriteTextNative, WriteTextDart>('fs_write_text_file');
+    readCsvFile = _lib.lookupFunction<JsonPathNative, JsonPathDart>('fs_read_csv_file');
+    readHexChunk = _lib.lookupFunction<JsonHexNative, JsonHexDart>('fs_read_hex_chunk');
+    readImageAsBase64 = _lib.lookupFunction<JsonPathNative, JsonPathDart>('fs_read_image_as_base64');
+    readBinaryAsBase64 = _lib.lookupFunction<JsonPathNative, JsonPathDart>('fs_read_binary_as_base64');
+    access = _lib.lookupFunction<AccessNative, AccessDart>('fs_access');
+    chown = _lib.lookupFunction<ChownNative, ChownDart>('fs_chown');
+    lchown = _lib.lookupFunction<ChownNative, ChownDart>('fs_lchown');
+    symlink = _lib.lookupFunction<SymlinkNative, SymlinkDart>('fs_symlink');
+    link = _lib.lookupFunction<LinkNative, LinkDart>('fs_link');
+    realpath = _lib.lookupFunction<JsonPathNative, JsonPathDart>('fs_realpath');
+    readlink = _lib.lookupFunction<JsonPathNative, JsonPathDart>('fs_readlink');
   }
 
-  void _bindTextOps() {
-    _textCreate = _lib.lookupFunction<TextOpsCreateNative, TextOpsCreateDart>('text_ops_create');
-    _textDestroy = _lib.lookupFunction<TextOpsDestroyNative, TextOpsDestroyDart>('text_ops_destroy');
-    _textOpen = _lib.lookupFunction<TextOpsOpenNative, TextOpsOpenDart>('text_ops_open');
-    _textClose = _lib.lookupFunction<TextOpsCloseNative, TextOpsCloseDart>('text_ops_close');
-    _textIsOpen = _lib.lookupFunction<TextOpsIsOpenNative, TextOpsIsOpenDart>('text_ops_is_open');
-    _textSize = _lib.lookupFunction<TextOpsSizeNative, TextOpsSizeDart>('text_ops_size');
-    _textPath = _lib.lookupFunction<TextOpsPathNative, TextOpsPathDart>('text_ops_path');
-    _textRead = _lib.lookupFunction<TextOpsReadNative, TextOpsReadDart>('text_ops_read');
-    _textLineCount = _lib.lookupFunction<TextOpsLineCountNative, TextOpsLineCountDart>('text_ops_line_count');
-    _textReadLine = _lib.lookupFunction<TextOpsReadLineNative, TextOpsReadLineDart>('text_ops_read_line');
-    _textError = _lib.lookupFunction<TextOpsErrorNative, TextOpsErrorDart>('text_ops_error');
+  void _bindFsText() {
+    _textCreate = _lib.lookupFunction<FsTextCreateNative, FsTextCreateDart>('fs_text_create');
+    _textDestroy = _lib.lookupFunction<FsTextDestroyNative, FsTextDestroyDart>('fs_text_destroy');
+    _textOpen = _lib.lookupFunction<FsTextOpenNative, FsTextOpenDart>('fs_text_open');
+    _textClose = _lib.lookupFunction<FsTextCloseNative, FsTextCloseDart>('fs_text_close');
+    _textIsOpen = _lib.lookupFunction<FsTextIsOpenNative, FsTextIsOpenDart>('fs_text_is_open');
+    _textSize = _lib.lookupFunction<FsTextSizeNative, FsTextSizeDart>('fs_text_size');
+    _textPath = _lib.lookupFunction<FsTextPathNative, FsTextPathDart>('fs_text_path');
+    _textRead = _lib.lookupFunction<FsTextReadNative, FsTextReadDart>('fs_text_read');
+    _textLineCount = _lib.lookupFunction<FsTextLineCountNative, FsTextLineCountDart>('fs_text_line_count');
+    _textReadLine = _lib.lookupFunction<FsTextReadLineNative, FsTextReadLineDart>('fs_text_read_line');
+    _textError = _lib.lookupFunction<FsTextErrorNative, FsTextErrorDart>('fs_text_error');
   }
 
-  // ---- TextOps 高层 API（兼容原 lib/ffi/text_ops_ffi.dart 接口） ----
+  // ---- FsText 高层 API（兼容原 lib/ffi/fs_text_ffi.dart 接口） ----
 
-  /// 创建一个新的 TextOps 句柄。
-  Pointer<Void> textOpsCreate() => _textCreate();
+  /// 创建一个新的 FsText 句柄。
+  Pointer<Void> fsTextCreate() => _textCreate();
 
-  /// 销毁 TextOps 句柄。
-  void textOpsDestroy(Pointer<Void> handle) => _textDestroy(handle);
+  /// 销毁 FsText 句柄。
+  void fsTextDestroy(Pointer<Void> handle) => _textDestroy(handle);
 
   /// 打开文件，成功返回 0。
-  int textOpsOpen(Pointer<Void> handle, Pointer<Utf8> path) =>
+  int fsTextOpen(Pointer<Void> handle, Pointer<Utf8> path) =>
       _textOpen(handle, path);
 
   /// 关闭当前文件。
-  void textOpsClose(Pointer<Void> handle) => _textClose(handle);
+  void fsTextClose(Pointer<Void> handle) => _textClose(handle);
 
   /// 是否已打开文件。
-  int textOpsIsOpen(Pointer<Void> handle) => _textIsOpen(handle);
+  int fsTextIsOpen(Pointer<Void> handle) => _textIsOpen(handle);
 
   /// 文件大小（字节）。
-  int textOpsSize(Pointer<Void> handle) => _textSize(handle);
+  int fsTextSize(Pointer<Void> handle) => _textSize(handle);
 
   /// 当前文件路径。
-  Pointer<Utf8> textOpsPath(Pointer<Void> handle) => _textPath(handle);
+  Pointer<Utf8> fsTextPath(Pointer<Void> handle) => _textPath(handle);
 
   /// 读取 [offset, offset+length) 字节到 buffer，返回实际读取字节数。
-  int textOpsRead(
+  int fsTextRead(
     Pointer<Void> handle,
     int offset,
     int length,
@@ -282,10 +282,10 @@ class CoreNative {
   ) => _textRead(handle, offset, length, buffer, bufferSize);
 
   /// 行数。
-  int textOpsLineCount(Pointer<Void> handle) => _textLineCount(handle);
+  int fsTextLineCount(Pointer<Void> handle) => _textLineCount(handle);
 
   /// 读取指定行（0-based）到 buffer，返回实际字节数（不含换行符）。
-  int textOpsReadLine(
+  int fsTextReadLine(
     Pointer<Void> handle,
     int line,
     Pointer<Uint8> buffer,
@@ -293,5 +293,5 @@ class CoreNative {
   ) => _textReadLine(handle, line, buffer, bufferSize);
 
   /// 最近一次错误信息。
-  Pointer<Utf8> textOpsError(Pointer<Void> handle) => _textError(handle);
+  Pointer<Utf8> fsTextError(Pointer<Void> handle) => _textError(handle);
 }

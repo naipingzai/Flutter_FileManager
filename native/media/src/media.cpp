@@ -14,7 +14,7 @@
 #include <system_error>
 
 // stb_image - 单头文件实现
-#define STB_IMAGE_IMPLEMENTATION
+// STB_IMAGE_IMPLEMENTATION 由各平台 CMake 统一提供（避免重复定义）
 #include "stb_image.h"
 
 // miniz - 实现由 miniz.c 单独编译提供
@@ -843,5 +843,46 @@ char* media_decode_audio(const unsigned char* data, int len) {
     return out;
 }
 
+#else // !HAVE_FFMPEG — 提供桩实现，保证符号始终存在（Dart FFI 无条件绑定）
+
+void* media_video_open(const unsigned char* data, int len) {
+    (void)data; (void)len;
+    return NULL;
+}
+int media_video_next_frame(void* handle, char** out_json) {
+    (void)handle; if (out_json) *out_json = NULL;
+    return -1;
+}
+int media_video_seek(void* handle, double timestamp) {
+    (void)handle; (void)timestamp;
+    return 0;
+}
+char* media_video_get_info(void* handle) {
+    (void)handle;
+    return strdup_std("{\"error\":\"ffmpeg not built in\",\"width\":0,\"height\":0,\"duration\":0,\"fps\":0}");
+}
+void media_video_close(void* handle) { (void)handle; }
+
+char* media_decode_audio(const unsigned char* data, int len) {
+    (void)data; (void)len;
+    return strdup_std("{\"error\":\"ffmpeg not built in\",\"base64\":\"\",\"sample_rate\":0,\"channels\":0,\"bits\":0,\"length\":0}");
+}
+
 #endif // HAVE_FFMPEG
+
+// ============================================================
+// 音频输出：平台层实现（ALSA/AAudio/AudioQueue/WASAPI）尚未接入编译时，
+// 此处提供默认桩实现，保证 media_audio_output_* 符号始终存在。
+// 后续在对应 platform/<plat>/ 下编译真实实现并替换。
+// ============================================================
+void* media_audio_output_open(int sample_rate, int channels, int bits) {
+    (void)sample_rate; (void)channels; (void)bits;
+    return NULL;
+}
+int media_audio_output_write(void* handle, const unsigned char* pcm, int len) {
+    (void)handle; (void)pcm; (void)len;
+    return -1;
+}
+void media_audio_output_stop(void* handle) { (void)handle; }
+void media_audio_output_close(void* handle) { (void)handle; }
 

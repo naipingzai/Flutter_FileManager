@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# 是否集成 FFmpeg（视频/音频解码）。各平台可覆盖（如 Windows 默认关闭）。
+# 关闭时 media 仍提供视频/音频桩符号，Dart FFI 可安全绑定。
+option(MEDIA_ENABLE_FFMPEG "Build FFmpeg-based video/audio decoding" ON)
+
 # ============================================================
 # base 代码：跨平台功能实现（src/）
 # ============================================================

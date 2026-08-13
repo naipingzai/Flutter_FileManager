@@ -1,43 +1,76 @@
 # ============================================================
 # media - Linux 平台配置
+# 集成第三方库：FFmpeg（FetchContent + 脚本编译）+ miniz（单文件编译）+ stb_image（header-only）
 # ============================================================
 
-# miniz 源码（电子书/压缩包工具，单文件实现）
-# 平台层：ALSA 音频输出
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/fetch_thirdparty.cmake)
+
+# ============================================================
+# 1. miniz：单文件实现，直接编译进 media 静态库
+# ============================================================
+thirdparty_setup_miniz()
+target_include_directories(media PRIVATE ${THIRDPARTY_MINIZ_DIR})
 set(MEDIA_PLATFORM_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniz.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/platform/linux/src/audio_output_alsa.cpp
+    ${THIRDPARTY_MINIZ_SRCS}
 )
 
-# FFmpeg 静态库（硬性依赖：必须先运行 build_ffmpeg_linux.sh 生成，
-# 在 ffmpeg 源码树内 configure + make）
-set(FFMPEG_STATIC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg")
+# ============================================================
+# 2. stb_image：header-only，提供给 media.cpp 使用
+# ============================================================
+thirdparty_setup_stb_image()
+target_include_directories(media PRIVATE ${THIRDPARTY_STB_DIR})
 
-find_package(OpenSSL QUIET)
+# ============================================================
+# 3. FFmpeg：下载源码 + configure + make install（可用 MEDIA_ENABLE_FFMPEG 关闭）
+# ============================================================
+if(MEDIA_ENABLE_FFMPEG)
+thirdparty_setup_ffmpeg(FFMPEG_SRC_DIR)
+
+set(FFMPEG_BUILD_DIR "${CMAKE_BINARY_DIR}/_ffmpeg_build_linux")
+file(MAKE_DIRECTORY "${FFMPEG_BUILD_DIR}")
+
+# 极简 configure 参数：仅解码器 + 不依赖外部库
+set(_FFMPEG_CONFIG_ARGS
+    --disable-x86asm --disable-inline-asm
+    --disable-avdevice --disable-avfilter --disable-postproc
+    --disable-network --disable-doc --disable-programs
+    --disable-encoders --disable-muxers --disable-devices
+    --disable-bzlib --disable-lzma --disable-zlib
+    --disable-vaapi --disable-vdpau --disable-xlib --disable-sdl2
+    --disable-decoder=twinvq,metasound
+    --enable-decoder=h264,hevc,mp3,aac,flac,wavpack,opus,vorbis,pcm_s16le,ac3,eac3
+    --enable-demuxer=mov,matroska,mp3,flac,wav,ogg,ac3
+    --enable-protocol=file
+    --enable-avcodec --enable-avformat --enable-avutil --enable-swscale
+    --enable-swresample
+)
+
+thirdparty_configure_ffmpeg("${FFMPEG_SRC_DIR}" "${FFMPEG_BUILD_DIR}" "${_FFMPEG_CONFIG_ARGS}")
+
+# 链接到 FFmpeg 静态库
+find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
-find_package(ALSA REQUIRED)
-
-# FFmpeg 静态库之间互相引用，需用 --start-group/--end-group 解决循环依赖
 set(MEDIA_PLATFORM_LIBS
-    -Wl,--start-group
-    ${FFMPEG_STATIC_DIR}/libavformat/libavformat.a
-    ${FFMPEG_STATIC_DIR}/libavcodec/libavcodec.a
-    ${FFMPEG_STATIC_DIR}/libavutil/libavutil.a
-    ${FFMPEG_STATIC_DIR}/libswscale/libswscale.a
-    ${FFMPEG_STATIC_DIR}/libswresample/libswresample.a
-    -Wl,--end-group
+    ${FFMPEG_BUILD_DIR}/lib/libavformat.a
+    ${FFMPEG_BUILD_DIR}/lib/libavcodec.a
+    ${FFMPEG_BUILD_DIR}/lib/libavutil.a
+    ${FFMPEG_BUILD_DIR}/lib/libswscale.a
+    ${FFMPEG_BUILD_DIR}/lib/libswresample.a
+    OpenSSL::Crypto
     ZLIB::ZLIB
-    ALSA::ALSA
-    m
+    stdc++fs
     pthread
+    m
     dl
 )
 
 # FFmpeg 头文件
-target_include_directories(media PRIVATE ${FFMPEG_STATIC_DIR})
+target_include_directories(media PRIVATE ${FFMPEG_BUILD_DIR}/include)
+endif()
 
-# 启用 FFmpeg 功能
+# 平台编译定义
 target_compile_definitions(media PRIVATE
     MEDIA_PLATFORM_LINUX=1
-    HAVE_FFMPEG=1
+    $<$<BOOL:${MEDIA_ENABLE_FFMPEG}>:HAVE_FFMPEG=1>
+    STB_IMAGE_IMPLEMENTATION=1
 )

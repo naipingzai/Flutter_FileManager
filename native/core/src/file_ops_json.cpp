@@ -1,5 +1,6 @@
 
-#include "core.h"
+#include "fs.h"
+#include "fs_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,7 +73,7 @@ static void fi_to_json(JsonBuilder* jb, const FileInfo* i) {
 
 extern "C" {
 
-char* file_ops_json_list_directory(const char* path, int show_hidden) {
+char* fs_list_directory(const char* path, int show_hidden) {
     JsonBuilder* jb = jb_new();
     DirListResult* r = file_ops_list_directory(path, show_hidden != 0);
     if (!r) { jb_append(jb, "{\"error\":\"null\",\"items\":[]}"); return jb_finish(jb); }
@@ -82,7 +83,7 @@ char* file_ops_json_list_directory(const char* path, int show_hidden) {
     jb_append(jb, "]}"); file_ops_free_dir_list(r); return jb_finish(jb);
 }
 
-char* file_ops_json_get_file_info(const char* path) {
+char* fs_get_file_info(const char* path) {
     JsonBuilder* jb = jb_new();
     FileInfo* i = file_ops_get_file_info(path);
     if (!i) { jb_append(jb, "{\"error\":\"not found\"}"); return jb_finish(jb); }
@@ -90,7 +91,7 @@ char* file_ops_json_get_file_info(const char* path) {
     file_ops_free_file_info(i); return jb_finish(jb);
 }
 
-char* file_ops_json_search_files(const char* dir, const char* pattern, int max_results) {
+char* fs_search_files(const char* dir, const char* pattern, int max_results) {
     JsonBuilder* jb = jb_new();
     SearchResultList* r = file_ops_search_files(dir, pattern, max_results);
     if (!r) { jb_append(jb, "{\"error\":\"null\",\"items\":[]}"); return jb_finish(jb); }
@@ -107,7 +108,7 @@ char* file_ops_json_search_files(const char* dir, const char* pattern, int max_r
     jb_append(jb, "]}"); file_ops_free_search_results(r); return jb_finish(jb);
 }
 
-char* file_ops_json_compute_hash(const char* path) {
+char* fs_compute_hash(const char* path) {
     JsonBuilder* jb = jb_new();
     HashResult* r = file_ops_compute_hash(path);
     if (!r) { jb_append(jb, "{\"error\":\"failed\"}"); return jb_finish(jb); }
@@ -120,7 +121,7 @@ char* file_ops_json_compute_hash(const char* path) {
     jb_append(jb, "}"); file_ops_free_hash_result(r); return jb_finish(jb);
 }
 
-char* file_ops_json_get_disk_usage(const char* path) {
+char* fs_get_disk_usage(const char* path) {
     JsonBuilder* jb = jb_new();
     DiskUsageInfo* d = file_ops_get_disk_usage(path);
     if (!d) { jb_append(jb, "{\"error\":\"failed\"}"); return jb_finish(jb); }
@@ -131,7 +132,7 @@ char* file_ops_json_get_disk_usage(const char* path) {
     jb_append(jb, "}"); file_ops_free_disk_usage(d); return jb_finish(jb);
 }
 
-char* file_ops_json_find_duplicates(const char* dir, int max_results) {
+char* fs_find_duplicates(const char* dir, int max_results) {
     JsonBuilder* jb = jb_new();
     SearchResultList* r = file_ops_find_duplicates(dir, max_results);
     if (!r) { jb_append(jb, "{\"error\":\"null\",\"items\":[]}"); return jb_finish(jb); }
@@ -146,7 +147,7 @@ char* file_ops_json_find_duplicates(const char* dir, int max_results) {
     jb_append(jb, "]}"); file_ops_free_search_results(r); return jb_finish(jb);
 }
 
-char* file_ops_json_find_empty_files(const char* dir, int max_results) {
+char* fs_find_empty_files(const char* dir, int max_results) {
     JsonBuilder* jb = jb_new();
     SearchResultList* r = file_ops_find_empty_files(dir, max_results);
     if (!r) { jb_append(jb, "{\"error\":\"null\",\"items\":[]}"); return jb_finish(jb); }
@@ -162,53 +163,53 @@ char* file_ops_json_find_empty_files(const char* dir, int max_results) {
     jb_append(jb, "]}"); file_ops_free_search_results(r); return jb_finish(jb);
 }
 
-char* file_ops_json_get_home_dir(void) {
+char* fs_get_home_dir(void) {
     JsonBuilder* jb = jb_new(); jb_append(jb, "{\"path\":"); jb_append_esc(jb, file_ops_get_home_dir()); jb_append(jb, "}"); return jb_finish(jb);
 }
-char* file_ops_json_get_root_dir(void) {
+char* fs_get_root_dir(void) {
     JsonBuilder* jb = jb_new(); jb_append(jb, "{\"path\":"); jb_append_esc(jb, file_ops_get_root_dir()); jb_append(jb, "}"); return jb_finish(jb);
 }
 
-int file_ops_json_create_directory(const char* path, char* error, int error_size) { return file_ops_create_directory(path, error, error_size); }
-int file_ops_json_create_file(const char* path, char* error, int error_size) { return file_ops_create_file(path, error, error_size); }
-int file_ops_json_delete_file(const char* path, char* error, int error_size) { return file_ops_delete_file(path, error, error_size); }
-int file_ops_json_rename(const char* old_path, const char* new_path, char* error, int error_size) { return file_ops_rename(old_path, new_path, error, error_size); }
-int file_ops_json_copy_file(const char* src, const char* dst, char* error, int error_size) { return file_ops_copy_file(src, dst, error, error_size); }
-int file_ops_json_move_file(const char* src, const char* dst, char* error, int error_size) { return file_ops_move_file(src, dst, error, error_size); }
-int file_ops_json_exists(const char* path) { return file_ops_exists(path); }
-int file_ops_json_is_directory(const char* path) { return file_ops_is_directory(path); }
-void file_ops_free_json(char* json) { free(json); }
+int fs_create_directory(const char* path, char* error, int error_size) { return file_ops_create_directory(path, error, error_size); }
+int fs_create_file(const char* path, char* error, int error_size) { return file_ops_create_file(path, error, error_size); }
+int fs_delete_file(const char* path, char* error, int error_size) { return file_ops_delete_file(path, error, error_size); }
+int fs_rename(const char* old_path, const char* new_path, char* error, int error_size) { return file_ops_rename(old_path, new_path, error, error_size); }
+int fs_copy_file(const char* src, const char* dst, char* error, int error_size) { return file_ops_copy_file(src, dst, error, error_size); }
+int fs_move_file(const char* src, const char* dst, char* error, int error_size) { return file_ops_move_file(src, dst, error, error_size); }
+int fs_exists(const char* path) { return file_ops_exists(path); }
+int fs_is_directory(const char* path) { return file_ops_is_directory(path); }
+void fs_free_json(char* json) { free(json); }
 
 // New functions from Syscall.kt - added by porting
 
-int file_ops_json_access(const char* path, int mode) {
+int fs_access(const char* path, int mode) {
     return file_ops_access(path, mode);
 }
 
-int file_ops_json_chown(const char* path, uint32_t uid, uint32_t gid, char* error, int error_size) {
+int fs_chown(const char* path, uint32_t uid, uint32_t gid, char* error, int error_size) {
     return file_ops_chown(path, uid, gid, error, error_size);
 }
 
-int file_ops_json_lchown(const char* path, uint32_t uid, uint32_t gid, char* error, int error_size) {
+int fs_lchown(const char* path, uint32_t uid, uint32_t gid, char* error, int error_size) {
     return file_ops_lchown(path, uid, gid, error, error_size);
 }
 
-int file_ops_json_symlink(const char* target, const char* linkpath, char* error, int error_size) {
+int fs_symlink(const char* target, const char* linkpath, char* error, int error_size) {
     return file_ops_symlink(target, linkpath, error, error_size);
 }
 
-int file_ops_json_link(const char* oldpath, const char* newpath, char* error, int error_size) {
+int fs_link(const char* oldpath, const char* newpath, char* error, int error_size) {
     return file_ops_link(oldpath, newpath, error, error_size);
 }
 
-static const char* file_ops_json_realpath_impl(const char* path) {
+static const char* fs_realpath_impl(const char* path) {
     return file_ops_realpath(path);
 }
-static const char* file_ops_json_readlink_impl(const char* path) {
+static const char* fs_readlink_impl(const char* path) {
     return file_ops_readlink(path);
 }
 
-char* file_ops_json_get_recent_files(const char* dir, int days, int max_results) {
+char* fs_get_recent_files(const char* dir, int days, int max_results) {
     JsonBuilder* jb = jb_new();
     SearchResultList* r = file_ops_get_recent_files(dir, days, max_results);
     if (!r) { jb_append(jb, "{\"error\":\"null\",\"items\":[]}"); return jb_finish(jb); }
@@ -225,26 +226,26 @@ char* file_ops_json_get_recent_files(const char* dir, int days, int max_results)
     jb_append(jb, "]}"); file_ops_free_search_results(r); return jb_finish(jb);
 }
 
-int file_ops_json_encrypt_file(const char* src, const char* dst, const char* password, char* error, int error_size) {
+int fs_encrypt_file(const char* src, const char* dst, const char* password, char* error, int error_size) {
     return file_ops_encrypt_file(src, dst, password, error, error_size);
 }
 
-int file_ops_json_decrypt_file(const char* src, const char* dst, const char* password, char* error, int error_size) {
+int fs_decrypt_file(const char* src, const char* dst, const char* password, char* error, int error_size) {
     return file_ops_decrypt_file(src, dst, password, error, error_size);
 }
 
-char* file_ops_json_realpath(const char* path) {
+char* fs_realpath(const char* path) {
     JsonBuilder* jb = jb_new();
-    const char* rp = file_ops_json_realpath_impl(path);
+    const char* rp = fs_realpath_impl(path);
     jb_append(jb, "{\"path\":");
     jb_append_esc(jb, rp ? rp : "");
     jb_append(jb, "}");
     return jb_finish(jb);
 }
 
-char* file_ops_json_readlink(const char* path) {
+char* fs_readlink(const char* path) {
     JsonBuilder* jb = jb_new();
-    const char* rl = file_ops_json_readlink_impl(path);
+    const char* rl = fs_readlink_impl(path);
     jb_append(jb, "{\"target\":");
     jb_append_esc(jb, rl ? rl : "");
     jb_append(jb, "}");
@@ -255,7 +256,7 @@ char* file_ops_json_readlink(const char* path) {
 // File content I/O (for viewers)
 // ============================================================
 
-char* file_ops_json_read_text_file(const char* path) {
+char* fs_read_text_file(const char* path) {
     JsonBuilder* jb = jb_new();
     char* text = file_ops_read_file_text(path);
     if (!text) {
@@ -269,11 +270,11 @@ char* file_ops_json_read_text_file(const char* path) {
     return jb_finish(jb);
 }
 
-int file_ops_json_write_text_file(const char* path, const char* content, char* error, int error_size) {
+int fs_write_text_file(const char* path, const char* content, char* error, int error_size) {
     return file_ops_write_file_text(path, content, error, error_size);
 }
 
-char* file_ops_json_read_csv_file(const char* path) {
+char* fs_read_csv_file(const char* path) {
     JsonBuilder* jb = jb_new();
     char* text = file_ops_read_file_text(path);
     if (!text) {
@@ -309,7 +310,7 @@ char* file_ops_json_read_csv_file(const char* path) {
     return jb_finish(jb);
 }
 
-char* file_ops_json_read_hex_chunk(const char* path, long long offset, int length) {
+char* fs_read_hex_chunk(const char* path, long long offset, int length) {
     JsonBuilder* jb = jb_new();
     int actual_len = 0;
     unsigned char* data = file_ops_read_file_chunk(path, offset, length, &actual_len);
@@ -345,7 +346,7 @@ char* file_ops_json_read_hex_chunk(const char* path, long long offset, int lengt
 
 static const char b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-char* file_ops_json_read_image_as_base64(const char* path) {
+char* fs_read_image_as_base64(const char* path) {
     JsonBuilder* jb = jb_new();
     int data_len = 0;
     unsigned char* data = file_ops_read_file_bytes(path, &data_len);
@@ -386,7 +387,7 @@ char* file_ops_json_read_image_as_base64(const char* path) {
 }
 
 // 通用二进制读取：视频/音频/PDF/电子书等所有 viewer 用
-char* file_ops_json_read_binary_as_base64(const char* path) {
+char* fs_read_binary_as_base64(const char* path) {
     JsonBuilder* jb = jb_new();
     int data_len = 0;
     unsigned char* data = file_ops_read_file_bytes(path, &data_len);
@@ -429,11 +430,11 @@ char* file_ops_json_read_binary_as_base64(const char* path) {
 // ====================  FILE TOOL API (JSON)  =================
 // ============================================================
 
-int file_ops_json_chmod(const char* path, uint32_t mode, char* error, int error_size) {
+int fs_chmod(const char* path, uint32_t mode, char* error, int error_size) {
     return file_ops_chmod(path, mode, error, error_size);
 }
 
-char* file_ops_json_detect_encoding(const char* path) {
+char* fs_detect_encoding(const char* path) {
     JsonBuilder* jb = jb_new();
     const char* enc = file_ops_detect_encoding(path);
     jb_append(jb, "{\"error\":\"\",\"encoding\":");
@@ -442,7 +443,7 @@ char* file_ops_json_detect_encoding(const char* path) {
     return jb_finish(jb);
 }
 
-char* file_ops_json_text_stats(const char* path) {
+char* fs_text_stats(const char* path) {
     JsonBuilder* jb = jb_new();
     long long bytes = 0, chars = 0, lines = 0, words = 0;
     if (file_ops_text_stats(path, &bytes, &chars, &lines, &words) != 0) {
@@ -457,7 +458,7 @@ char* file_ops_json_text_stats(const char* path) {
     return jb_finish(jb);
 }
 
-char* file_ops_json_compare_files(const char* path_a, const char* path_b) {
+char* fs_compare_files(const char* path_a, const char* path_b) {
     JsonBuilder* jb = jb_new();
     int equal = 0;
     long long first_diff = -1;
@@ -482,11 +483,11 @@ char* file_ops_json_compare_files(const char* path_a, const char* path_b) {
     return jb_finish(jb);
 }
 
-int file_ops_json_split_file(const char* path, long long part_size, const char* out_dir, char* error, int error_size) {
+int fs_split_file(const char* path, long long part_size, const char* out_dir, char* error, int error_size) {
     return file_ops_split_file(path, part_size, out_dir, error, error_size);
 }
 
-int file_ops_json_merge_files(const char* parts_dir, const char* base_name, const char* out_path, char* error, int error_size) {
+int fs_merge_files(const char* parts_dir, const char* base_name, const char* out_path, char* error, int error_size) {
     return file_ops_merge_files(parts_dir, base_name, out_path, error, error_size);
 }
 
