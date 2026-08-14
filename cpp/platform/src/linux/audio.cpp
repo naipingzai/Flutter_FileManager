@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/media/media.h"
+#include "media.h"
 
 typedef struct {
     snd_pcm_t* pcm;

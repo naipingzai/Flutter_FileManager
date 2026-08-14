@@ -53,39 +53,39 @@ endif()
 # ============================================================
 set(NATIVE_SOURCES
     # core - 公共基础
-    core/common/json/json_builder.c
-    core/common/crypto/crc32.c
-    core/common/crypto/md5.c
-    core/common/crypto/crypto_impl.cpp
+    core/src/json/json_builder.c
+    core/src/crypto/crc32.c
+    core/src/crypto/md5.c
+    core/src/crypto/crypto_impl.cpp
     # core - 功能
-    core/system/system_core.cpp
-    core/file/file_core.cpp
-    core/file/file_ffi.cpp
-    core/text/text_core.cpp
-    core/media/media_core.cpp
+    core/src/system.cpp
+    core/src/file.cpp
+    core/src/file_ffi.cpp
+    core/src/text.cpp
+    core/src/media.cpp
 )
 
 # platform - 按 OS 选择实现
 if(WIN32)
     list(APPEND NATIVE_SOURCES
-        platform/windows/system.cpp
-        platform/windows/file.cpp
-        platform/windows/audio.cpp
+        platform/src/windows/system.cpp
+        platform/src/windows/file.cpp
+        platform/src/windows/audio.cpp
     )
 elseif(ANDROID)
     list(APPEND NATIVE_SOURCES
-        platform/posix/system.cpp
-        platform/android/audio.cpp
+        platform/src/posix/system.cpp
+        platform/src/android/audio.cpp
     )
 elseif(APPLE)
     list(APPEND NATIVE_SOURCES
-        platform/posix/system.cpp
-        platform/apple/audio.cpp
+        platform/src/posix/system.cpp
+        platform/src/apple/audio.cpp
     )
 else()
     list(APPEND NATIVE_SOURCES
-        platform/posix/system.cpp
-        platform/linux/audio.cpp
+        platform/src/posix/system.cpp
+        platform/src/linux/audio.cpp
     )
 endif()
 
@@ -93,7 +93,16 @@ endif()
 # 单一静态库
 # ============================================================
 add_library(native STATIC ${NATIVE_SOURCES})
-target_include_directories(native PUBLIC ${CPP_ROOT})
+
+# include 路径：
+#   core/include      公开头文件（system.h / file.h / media.h / ...）
+#   platform/include  平台接口（platform.h）
+#   CPP_ROOT          （供 file.cpp 在 Windows 下 include platform/src/windows/file.cpp）
+target_include_directories(native PUBLIC
+    ${CPP_ROOT}/core/include
+    ${CPP_ROOT}/platform/include
+    ${CPP_ROOT}
+)
 
 # 平台系统库
 if(WIN32)

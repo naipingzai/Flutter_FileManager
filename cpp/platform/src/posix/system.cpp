@@ -5,7 +5,7 @@
  * 由 system 模块 CMake 在 Linux/Android/Apple 时引入。
  */
 
-#include "platform/system.h"
+#include "platform.h"
 
 #include <stdlib.h>
 #include <string.h>

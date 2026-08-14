@@ -7,7 +7,7 @@
 
 #ifdef _WIN32
 
-#include "platform/system.h"
+#include "platform.h"
 
 #include <windows.h>
 #include <shlobj.h>

@@ -2,7 +2,7 @@
  * md5.c - MD5 (RFC 1321) 实现
  */
 
-#include "core/common/crypto.h"
+#include "crypto.h"
 #include <string.h>
 
 #define F(x, y, z) (((x) & (y)) | (~(x) & (z)))
