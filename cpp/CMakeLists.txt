@@ -63,6 +63,7 @@ set(NATIVE_SOURCES
     core/src/file_ffi.cpp
     core/src/text.cpp
     core/src/media.cpp
+    core/src/database.cpp
 )
 
 # platform - 按 OS 选择实现
