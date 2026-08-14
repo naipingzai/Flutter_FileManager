@@ -129,14 +129,23 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     // 释放上一帧
     final oldFrame = _currentFrame;
 
+    // 校验尺寸：rgba8888 要求 bytes 长度 === w*h*4，否则 decodeImageFromPixels 会崩溃
+    if (w <= 0 || h <= 0 || bytes.length != w * h * 4) {
+      return;
+    }
+
     final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      bytes,
-      w,
-      h,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
-    );
+    try {
+      ui.decodeImageFromPixels(
+        bytes,
+        w,
+        h,
+        ui.PixelFormat.rgba8888,
+        completer.complete,
+      );
+    } catch (_) {
+      return; // 同步参数错误
+    }
     try {
       final img = await completer.future;
       if (_disposed || !mounted) {
