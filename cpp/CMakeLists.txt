@@ -120,39 +120,38 @@ endif()
 
 # ============================================================
 # 第三方预编译库（FFmpeg + miniz + stb_image）
-# 通过 THIRDPARTY_DIR（或 FFMPEG_DIR）传入，见 REQUIREMENTS.md
+# 已直接 vendor 到工程 third_party/<platform>/，编译不再下载。
 # ============================================================
-set(_tp_root "")
-if(DEFINED THIRDPARTY_DIR)
-    set(_tp_root "${THIRDPARTY_DIR}")
-elseif(DEFINED ENV{THIRDPARTY_DIR})
-    set(_tp_root "$ENV{THIRDPARTY_DIR}")
-elseif(DEFINED FFMPEG_DIR)
-    set(_tp_root "${FFMPEG_DIR}")
-elseif(DEFINED ENV{FFMPEG_DIR})
-    set(_tp_root "$ENV{FFMPEG_DIR}")
+if(WIN32)
+    set(THIRD_PARTY_DIR "${CPP_ROOT}/../third_party/windows")
+elseif(ANDROID)
+    set(THIRD_PARTY_DIR "${CPP_ROOT}/../third_party/android")
+elseif(APPLE AND CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(THIRD_PARTY_DIR "${CPP_ROOT}/../third_party/ios")
+elseif(APPLE)
+    set(THIRD_PARTY_DIR "${CPP_ROOT}/../third_party/macos")
+else()
+    set(THIRD_PARTY_DIR "${CPP_ROOT}/../third_party/linux")
 endif()
 
-if(_tp_root AND EXISTS "${_tp_root}/include" AND EXISTS "${_tp_root}/lib")
-    target_include_directories(native PRIVATE "${_tp_root}/include")
+if(EXISTS "${THIRD_PARTY_DIR}/include" AND EXISTS "${THIRD_PARTY_DIR}/lib")
+    target_include_directories(native PRIVATE "${THIRD_PARTY_DIR}/include")
     if(WIN32)
-        target_link_directories(native PRIVATE "${_tp_root}/lib")
+        target_link_directories(native PRIVATE "${THIRD_PARTY_DIR}/lib")
         target_link_libraries(native PUBLIC avformat avcodec avutil swscale swresample miniz stb_image)
     else()
         target_link_libraries(native PUBLIC
-            "${_tp_root}/lib/libavformat.a"
-            "${_tp_root}/lib/libavcodec.a"
-            "${_tp_root}/lib/libavutil.a"
-            "${_tp_root}/lib/libswscale.a"
-            "${_tp_root}/lib/libswresample.a"
-            "${_tp_root}/lib/libminiz.a"
-            "${_tp_root}/lib/libstb_image.a"
+            "${THIRD_PARTY_DIR}/lib/libavformat.a"
+            "${THIRD_PARTY_DIR}/lib/libavcodec.a"
+            "${THIRD_PARTY_DIR}/lib/libavutil.a"
+            "${THIRD_PARTY_DIR}/lib/libswscale.a"
+            "${THIRD_PARTY_DIR}/lib/libswresample.a"
+            "${THIRD_PARTY_DIR}/lib/libminiz.a"
+            "${THIRD_PARTY_DIR}/lib/libstb_image.a"
         )
     endif()
-    target_compile_definitions(native PUBLIC HAVE_FFMPEG=1)
-    message(STATUS "[native] 第三方预编译库启用: ${_tp_root}")
+    message(STATUS "[native] 第三方预编译库: ${THIRD_PARTY_DIR}")
 else()
-    message(WARNING
-        "[native] 未找到第三方预编译库（请设置 THIRDPARTY_DIR/FFMPEG_DIR，见 REQUIREMENTS.md）。"
-        "本次回退到桩实现（媒体解码不可用）。")
+    message(FATAL_ERROR
+        "[native] 缺少第三方预编译库目录: ${THIRD_PARTY_DIR}（应为 third_party/<platform>/{include,lib}）")
 endif()

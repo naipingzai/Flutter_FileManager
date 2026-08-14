@@ -6,7 +6,7 @@
  *
  * 平台差异：
  *   - 图片解码、电子书、压缩包：跨平台统一
- *   - 视频/音频解码：FFmpeg 跨平台，但 #ifdef HAVE_FFMPEG 控制
+ *   - 视频/音频解码：FFmpeg 静态链接（预编译库，工程内提供）
  *   - 音频输出：platform/<os>/ 提供 ALSA/AAudio/AudioQueue/WASAPI
  */
 
@@ -29,7 +29,6 @@ extern "C" {
 #include "miniz.h"
 }
 
-#ifdef HAVE_FFMPEG
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -48,7 +47,6 @@ extern "C" {
 #define MEDIA_HAS_CHLAYOUT 1
 #else
 #define MEDIA_HAS_CHLAYOUT 0
-#endif
 #endif
 
 // ============================================================
@@ -439,8 +437,6 @@ void media_free_string(char *str) { if (str) free(str); }
 // 视频/音频（FFmpeg）
 // ============================================================
 
-#ifdef HAVE_FFMPEG
-
 typedef struct {
     const unsigned char *data;
     int len;
@@ -830,50 +826,4 @@ char *media_decode_audio(const unsigned char *data, int len) {
              b64, out_rate, out_ch, pcm_len);
     free(b64);
     return out;
-}
-
-#else // !HAVE_FFMPEG — 桩实现，确保符号始终存在（Dart FFI 无条件绑定）
-
-void *media_video_open(const unsigned char *data, int len) {
-    (void)data; (void)len;
-    return nullptr;
-}
-int media_video_next_frame_rgba(void *handle, unsigned char *out, int out_cap,
-                                int *out_w, int *out_h, double *out_ts) {
-    (void)handle; (void)out; (void)out_cap; (void)out_w; (void)out_h; (void)out_ts;
-    return -1;
-}
-int media_video_seek(void *handle, double timestamp) {
-    (void)handle; (void)timestamp;
-    return 0;
-}
-char *media_video_get_info(void *handle) {
-    (void)handle;
-    return strdup_std("{\"error\":\"ffmpeg not built in\",\"width\":0,\"height\":0,\"duration\":0,\"fps\":0}");
-}
-void media_video_close(void *handle) { (void)handle; }
-
-char *media_decode_audio(const unsigned char *data, int len) {
-    (void)data; (void)len;
-    return strdup_std("{\"error\":\"ffmpeg not built in\",\"base64\":\"\",\"sample_rate\":0,\"channels\":0,\"bits\":0,\"length\":0}");
-}
-
-#endif // HAVE_FFMPEG
-
-// ============================================================
-// 音频输出默认桩（无平台实现时提供）
-// ============================================================
-__attribute__((weak)) void *media_audio_output_open(int sample_rate, int channels, int bits) {
-    (void)sample_rate; (void)channels; (void)bits;
-    return nullptr;
-}
-__attribute__((weak)) int media_audio_output_write(void *handle, const unsigned char *pcm, int len) {
-    (void)handle; (void)pcm; (void)len;
-    return -1;
-}
-__attribute__((weak)) void media_audio_output_stop(void *handle) {
-    (void)handle;
-}
-__attribute__((weak)) void media_audio_output_close(void *handle) {
-    (void)handle;
 }

@@ -2,16 +2,14 @@
 # ============================================================
 # build_apple_native.sh - Apple (iOS/macOS) 原生模块统一构建脚本
 #
-# 把 C++ 模块（common/system/file/text/media）+ FFmpeg 静态库
-# 合并为一个 libflutter_native.a，供 Xcode 通过 -force_load 静态链接，
-# 使 Dart 的 DynamicLibrary.process() 能查到符号（遵循 skill：静态链接进主二进制）。
+# 把 cpp/core + cpp/platform 合并为一个 libflutter_native.a，
+# 供 Xcode 通过 -force_load 静态链接，使 Dart 的
+# DynamicLibrary.process() 能查到符号（静态链接进主二进制）。
 #
-# 用法：
-#   build_apple_native.sh <ios|macos>
+# 用法：build_apple_native.sh <ios|macos>
 #
 # 依赖：
-#   - 第三方预编译库（FFmpeg + miniz + stb_image），通过 THIRDPARTY_DIR 提供：
-#     <dir>/include + <dir>/lib/lib*.a（不下载、不本地编译源码，见 REQUIREMENTS.md）
+#   - 第三方预编译库已 vendor 在工程 third_party/<platform>/{include,lib}，无需下载
 #   - 输出到 <repo>/build/native/<platform>/libflutter_native.a
 # ============================================================
 set -euo pipefail
@@ -22,17 +20,11 @@ if [[ "$PLATFORM" != "ios" && "$PLATFORM" != "macos" ]]; then
     exit 1
 fi
 
-# 第三方预编译库必须由外部提供
-TP_DIR="${THIRDPARTY_DIR:-${FFMPEG_DIR:-}}"
-if [[ -z "${TP_DIR}" ]]; then
-    echo "[native] 错误：未设置 THIRDPARTY_DIR（指向预编译 FFmpeg+miniz+stb_image，见 REQUIREMENTS.md）" >&2
-    exit 1
-fi
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CPP_DIR="${REPO_ROOT}/cpp"
 BUILD_DIR="${REPO_ROOT}/build/native/${PLATFORM}"
 ARCH="${2:-arm64}"
+TP_DIR="${REPO_ROOT}/third_party/${PLATFORM}"
 
 # 每次全量构建模块，避免 CMake 缓存跨平台残留
 rm -rf "${BUILD_DIR}"
@@ -43,7 +35,6 @@ CMAKE_ARGS=(
     -B "${BUILD_DIR}"
     -DCMAKE_BUILD_TYPE=Release
     -DCMAKE_OSX_ARCHITECTURES="${ARCH}"
-    -DTHIRDPARTY_DIR="${TP_DIR}"
 )
 
 if [[ "$PLATFORM" == "ios" ]]; then

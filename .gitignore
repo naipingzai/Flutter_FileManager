@@ -4,20 +4,13 @@ build/
 .idea/
 
 # ============================================================
-# 第三方预编译产物（由 THIRDPARTY_DIR 指向，见 REQUIREMENTS.md）
-# APP 不下载/编译第三方源码，只消费依赖仓库发布的静态库产物。
-# 不提交到 git，避免仓库过大、跨平台 ABI 不兼容。
+# 第三方预编译库已 vendor 到 third_party/<platform>/（随仓库提交，见 REQUIREMENTS.md）
+# 编译直接使用，不再下载。下方仅忽略构建期临时产物。
 # ============================================================
 build/_thirdparty_build/
 build/_thirdparty/
-_thirdparty/
 
-# 第三方源码/归档临时文件
-*.tar.xz
-*.tar.gz
-
-# 构建中间产物
-*.a
+# 构建中间产物（third_party/ 下的 .a 属预编译产物，需保留，故不全局忽略 *.a）
 *.o
 *.obj
 *.d
