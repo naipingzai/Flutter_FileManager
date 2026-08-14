@@ -54,6 +54,25 @@ extern "C" void common_sha512_final(SHA512Context *ctx, unsigned char out[64]) {
 }
 
 // ============================================================
+// SHA1
+// ============================================================
+extern "C" void common_sha1_init(SHA1Context *ctx) {
+    core_crypto::SHA1Context *c = reinterpret_cast<core_crypto::SHA1Context *>(ctx);
+    core_crypto::sha1_init(c);
+}
+
+extern "C" void common_sha1_update(SHA1Context *ctx,
+                                   const unsigned char *data, size_t len) {
+    core_crypto::SHA1Context *c = reinterpret_cast<core_crypto::SHA1Context *>(ctx);
+    core_crypto::sha1_update(c, data, len);
+}
+
+extern "C" void common_sha1_final(SHA1Context *ctx, unsigned char out[20]) {
+    core_crypto::SHA1Context *c = reinterpret_cast<core_crypto::SHA1Context *>(ctx);
+    core_crypto::sha1_final(c, out);
+}
+
+// ============================================================
 // AES-256
 // ============================================================
 extern "C" void common_aes256_key_expand(AES256Key *ks,

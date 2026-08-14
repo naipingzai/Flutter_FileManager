@@ -79,6 +79,24 @@ target_include_directories(media
 target_link_libraries(media PUBLIC common)
 
 # ============================================================
+# 平台系统库（音频输出等）
+# ============================================================
+if(WIN32)
+    target_link_libraries(media PUBLIC ole32)
+elseif(ANDROID)
+    target_link_libraries(media PUBLIC log aaudio)
+elseif(APPLE)
+    target_link_libraries(media PUBLIC
+        "-framework AudioToolbox"
+        "-framework CoreFoundation"
+    )
+else()
+    # Linux：音频输出走 ALSA
+    target_link_libraries(media PUBLIC asound)
+endif()
+
+
+# ============================================================
 # FFmpeg 链接（所有平台使用预编译库，不本地编译源码）
 # 从 Flutter_CrossPlatformDependency 仓库 Release 下载当前平台产物。
 # ============================================================
