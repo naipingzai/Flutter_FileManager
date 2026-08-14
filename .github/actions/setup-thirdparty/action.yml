@@ -34,9 +34,10 @@ runs:
         dl_merge() { # $1=tag  $2=dep
           local tag="$1" dep="$2"
           # Windows(Git Bash) 下把 Windows 路径转成 unix 路径，供 tar 使用
-          local W
-          if command -v cygpath >/dev/null 2>&1; then W="cygpath -u"; else W="true"; fi
-          local base=$($W "${GITHUB_WORKSPACE}/_thirdparty")
+          local base="${GITHUB_WORKSPACE}/_thirdparty"
+          if command -v cygpath >/dev/null 2>&1; then
+            base="$(cygpath -u "${base}")"
+          fi
           mkdir -p "${base}/${dep}"
           curl -fL --retry 3 --retry-delay 2 \
             -o "${base}/${dep}.tar.gz" \
