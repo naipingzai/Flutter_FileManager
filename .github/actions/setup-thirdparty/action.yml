@@ -1,0 +1,52 @@
+name: Setup Third-party (prebuilt)
+description: 下载并合并各第三方预编译库（ffmpeg/miniz/stb_image），设置 THIRDPARTY_DIR
+inputs:
+  platform:
+    description: 'linux / android / windows / ios / macos'
+    required: true
+  arch:
+    description: 'x86_64 / aarch64 / arm64 / arm64-v8a'
+    required: true
+  ffmpeg_tag:
+    description: 'FFmpeg Release tag'
+    required: false
+    default: 'ffmpeg-n7.1'
+  miniz_tag:
+    description: 'miniz Release tag'
+    required: false
+    default: 'miniz-2.2.0'
+  stb_tag:
+    description: 'stb_image Release tag'
+    required: false
+    default: 'stb_image-2c980bb'
+runs:
+  using: composite
+  steps:
+    - name: Download & merge prebuilt third-party (${{ inputs.platform }}/${{ inputs.arch }})
+      shell: bash
+      run: |
+        set -euxo pipefail
+        ORG="naipingzai/Flutter_CrossPlatformDependency"
+        BASE="https://github.com/${ORG}/releases/download"
+        DIR="${GITHUB_WORKSPACE}/_thirdparty/${{ inputs.platform }}/${{ inputs.arch }}"
+        rm -rf "${GITHUB_WORKSPACE}/_thirdparty"
+        mkdir -p "${DIR}/include" "${DIR}/lib"
+        dl_merge() { # $1=tag  $2=dep
+          local tag="$1" dep="$2"
+          mkdir -p "${GITHUB_WORKSPACE}/_thirdparty/${dep}"
+          curl -fL --retry 3 --retry-delay 2 \
+            -o "${GITHUB_WORKSPACE}/_thirdparty/${dep}.tar.gz" \
+            "${BASE}/${tag}/${dep}-${{ inputs.platform }}.tar.gz"
+          tar xzf "${GITHUB_WORKSPACE}/_thirdparty/${dep}.tar.gz" \
+            -C "${GITHUB_WORKSPACE}/_thirdparty/${dep}"
+          # tarball 顶层为 <plat>，故 root = <dep>/<plat>/<arch>
+          local root="${GITHUB_WORKSPACE}/_thirdparty/${dep}/${{ inputs.platform }}/${{ inputs.arch }}"
+          cp -a "${root}/include/." "${DIR}/include/"
+          cp -a "${root}/lib/."     "${DIR}/lib/"
+        }
+        dl_merge "${{ inputs.ffmpeg_tag }}" "ffmpeg"
+        dl_merge "${{ inputs.miniz_tag }}" "miniz"
+        dl_merge "${{ inputs.stb_tag }}"   "stb_image"
+        test -d "${DIR}/lib" && test -d "${DIR}/include"
+        echo "THIRDPARTY_DIR=${DIR}" >> "${GITHUB_ENV}"
+        echo "THIRDPARTY_DIR=${DIR}"

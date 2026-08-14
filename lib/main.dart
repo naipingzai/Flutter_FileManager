@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'native/core_bindings.dart';
-import 'native/system_ffi.dart';
-import 'screens/file_manager_page.dart';
+import 'package:flutter_file_manager/core/native/file_ffi.dart';
+import 'package:flutter_file_manager/core/native/system_ffi.dart';
+import 'package:flutter_file_manager/features/file_manager/file_manager_page.dart';
 
 const _permissionChannel = MethodChannel(
   'com.example.flutter_file_manager/permissions',
@@ -20,9 +20,9 @@ class FlutterFileManagerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 触发 core 静态库的 FFI lookup，确保符号加载到进程。
-    // 真正使用 CoreNative 的是 FileService（懒加载）。
+    // 真正使用 FileNative 的是 FileService（懒加载）。
     // ignore: unused_local_variable
-    final core = CoreNative();
+    final core = FileNative();
 
     return MaterialApp(
       title: 'Flutter File Manager',

@@ -4,15 +4,13 @@ build/
 .idea/
 
 # ============================================================
-# 第三方依赖（由 fetch_thirdparty.cmake / fetch_ffmpeg.cmake 在
-# CMake 配置阶段自动下载到 ${CMAKE_BINARY_DIR}/_thirdparty_build/）
-#
-# 遵循 skill 规范：APP 不编译第三方库源码，只消费
-# Flutter_CrossPlatformDependency 仓库 Release 发布的静态库产物。
+# 第三方预编译产物（由 THIRDPARTY_DIR 指向，见 REQUIREMENTS.md）
+# APP 不下载/编译第三方源码，只消费依赖仓库发布的静态库产物。
 # 不提交到 git，避免仓库过大、跨平台 ABI 不兼容。
 # ============================================================
 build/_thirdparty_build/
 build/_thirdparty/
+_thirdparty/
 
 # 第三方源码/归档临时文件
 *.tar.xz

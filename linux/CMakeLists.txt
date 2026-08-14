@@ -55,25 +55,18 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
 # ============================================================
-# Native C++ modules（统一 modules/ 结构）
-# common → system → file → text → media
+# Native C++ 层（单一 CMake 配置，产出 common/system/file/text/media）
 # ============================================================
 set(NATIVE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../cpp")
-add_subdirectory("${NATIVE_ROOT}/common"  "${CMAKE_BINARY_DIR}/cpp/common")
-add_subdirectory("${NATIVE_ROOT}/modules/system" "${CMAKE_BINARY_DIR}/cpp/system")
-add_subdirectory("${NATIVE_ROOT}/modules/file"   "${CMAKE_BINARY_DIR}/cpp/file")
-add_subdirectory("${NATIVE_ROOT}/modules/text"   "${CMAKE_BINARY_DIR}/cpp/text")
-add_subdirectory("${NATIVE_ROOT}/modules/media"  "${CMAKE_BINARY_DIR}/cpp/media")
+add_subdirectory("${NATIVE_ROOT}" "${CMAKE_BINARY_DIR}/cpp")
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
 # Ensure native static libraries are built before the runner
-add_dependencies(${BINARY_NAME} common)
-add_dependencies(${BINARY_NAME} system)
-add_dependencies(${BINARY_NAME} file)
-add_dependencies(${BINARY_NAME} text)
-add_dependencies(${BINARY_NAME} media)
+foreach(mod common system file text media)
+    add_dependencies(${BINARY_NAME} ${mod})
+endforeach()
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

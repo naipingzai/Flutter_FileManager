@@ -50,26 +50,18 @@ set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
 # ============================================================
-# Native C++ modules（统一 modules/ 结构）
-# common → system → file → text → media
-# 每个功能独立目录 + 独立 CMake，编译为静态库直接集成进 exe
+# Native C++ 层（单一 CMake 配置，产出 common/system/file/text/media）
 # ============================================================
 set(NATIVE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../cpp")
-add_subdirectory("${NATIVE_ROOT}/common"          "${CMAKE_BINARY_DIR}/cpp/common")
-add_subdirectory("${NATIVE_ROOT}/modules/system"  "${CMAKE_BINARY_DIR}/cpp/system")
-add_subdirectory("${NATIVE_ROOT}/modules/file"    "${CMAKE_BINARY_DIR}/cpp/file")
-add_subdirectory("${NATIVE_ROOT}/modules/text"    "${CMAKE_BINARY_DIR}/cpp/text")
-add_subdirectory("${NATIVE_ROOT}/modules/media"   "${CMAKE_BINARY_DIR}/cpp/media")
+add_subdirectory("${NATIVE_ROOT}" "${CMAKE_BINARY_DIR}/cpp")
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
 # Ensure native static libraries are built before the runner
-add_dependencies(${BINARY_NAME} common)
-add_dependencies(${BINARY_NAME} system)
-add_dependencies(${BINARY_NAME} file)
-add_dependencies(${BINARY_NAME} text)
-add_dependencies(${BINARY_NAME} media)
+foreach(mod common system file text media)
+    add_dependencies(${BINARY_NAME} ${mod})
+endforeach()
 
 
 # Generated plugin build rules, which manage building the plugins and adding
