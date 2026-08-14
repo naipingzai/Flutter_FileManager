@@ -1,6 +1,14 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
+import 'package:flutter_file_manager/core/services/file_service.dart';
+import 'package:flutter_file_manager/features/viewer/audio/audio_player_page.dart';
+import 'package:flutter_file_manager/features/viewer/csv/csv_viewer_page.dart';
+import 'package:flutter_file_manager/features/viewer/ebook/ebook_viewer_page.dart';
+import 'package:flutter_file_manager/features/viewer/image/image_viewer_page.dart';
+import 'package:flutter_file_manager/features/viewer/pdf/pdf_viewer_page.dart';
+import 'package:flutter_file_manager/features/viewer/text/text_editor_page.dart';
+import 'package:flutter_file_manager/features/viewer/video/video_player_page.dart';
 
 /// 文件库页面：基于数据库的导入式文件管理 + 标签系统（核心）
 class LibraryPage extends StatefulWidget {
@@ -82,23 +90,62 @@ class _LibraryPageState extends State<LibraryPage> {
   // ---------- 标签 ----------
   Future<void> _createTag() async {
     final ctrl = TextEditingController();
-    final name = await showDialog<String>(
+    final colorCtr = ValueNotifier<String>('');
+    final colors = [
+      Colors.red, Colors.orange, Colors.amber, Colors.green,
+      Colors.teal, Colors.blue, Colors.indigo, Colors.purple, Colors.pink, Colors.brown,
+    ];
+    final result = await showDialog<(String, String)?>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('新建标签'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '标签名'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('新建标签'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: '标签名'),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final c in colors)
+                    InkWell(
+                      onTap: () {
+                        colorCtr.value = c.toARGB32().toRadixString(16).padLeft(8, '0');
+                        setDlg(() {});
+                      },
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: c,
+                          shape: BoxShape.circle,
+                          border: colorCtr.value == c.toARGB32().toRadixString(16).padLeft(8, '0')
+                              ? Border.all(color: Colors.black, width: 2)
+                              : null,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, (ctrl.text.trim(), colorCtr.value)),
+              child: const Text('创建'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('创建')),
-        ],
       ),
     );
-    if (name != null && name.isNotEmpty) {
-      _db.createTag(name);
+    if (result != null && result.$1.isNotEmpty) {
+      _db.createTag(result.$1, result.$2);
       _load();
     }
   }
@@ -290,7 +337,9 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _tagChip(dynamic id, String name, bool selected, {Map<String, dynamic>? tag}) {
+    final color = _colorOf(tag?['color']);
     final chip = ChoiceChip(
+      avatar: color != null ? CircleAvatar(backgroundColor: color, radius: 6) : null,
       label: Text(name),
       selected: selected,
       onSelected: (_) {
@@ -333,6 +382,9 @@ class _LibraryPageState extends State<LibraryPage> {
               Text(_size(f['size']), style: const TextStyle(fontSize: 11)),
             for (final t in tags)
               Chip(
+                avatar: _colorOf(t['color']) != null
+                    ? CircleAvatar(backgroundColor: _colorOf(t['color']), radius: 5)
+                    : null,
                 label: Text(t['name'].toString()),
                 labelStyle: const TextStyle(fontSize: 11),
                 visualDensity: VisualDensity.compact,
@@ -341,10 +393,15 @@ class _LibraryPageState extends State<LibraryPage> {
           ],
         );
         final leading = Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 32);
-        final trailing = (_selecting || isSel)
+        final trailing = _selecting || isSel
             ? Icon(isSel ? Icons.check_circle : Icons.circle_outlined,
                 color: isSel ? Colors.blue : Colors.grey)
-            : null;
+            : (!isDir
+                ? IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    onPressed: () => _onFileMenu(f),
+                  )
+                : null);
 
         return ListTile(
           leading: leading,
@@ -362,7 +419,7 @@ class _LibraryPageState extends State<LibraryPage> {
             } else if (isDir) {
               _enterDir(f);
             } else {
-              _onFileMenu(f);
+              _preview(f);
             }
           },
         );
@@ -377,6 +434,14 @@ class _LibraryPageState extends State<LibraryPage> {
       builder: (ctx) => SafeArea(
         child: Wrap(
           children: [
+            ListTile(
+              leading: const Icon(Icons.open_in_new),
+              title: const Text('预览'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _preview(f);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.sell_outlined),
               title: const Text('添加标签'),
@@ -419,6 +484,41 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
+  /// 用内部路径打开对应查看器
+  void _preview(Map<String, dynamic> f) {
+    final path = (f['path'] ?? '').toString();
+    if (path.isEmpty) return;
+    final type = FileService().determineViewer(path);
+    Widget page;
+    switch (type) {
+      case FileViewerType.image:
+        page = ImageViewerPage(initialPath: path);
+        break;
+      case FileViewerType.video:
+        page = VideoPlayerPage(path: path);
+        break;
+      case FileViewerType.audio:
+        page = AudioPlayerPage(path: path);
+        break;
+      case FileViewerType.pdf:
+        page = PdfViewerPage(path: path);
+        break;
+      case FileViewerType.ebook:
+        page = EbookViewerPage(path: path);
+        break;
+      case FileViewerType.csv:
+        page = CsvViewerPage(path: path);
+        break;
+      case FileViewerType.text:
+        page = TextEditorPage(path: path);
+        break;
+      default:
+        _snack('无法预览该类型: ${f['name']}');
+        return;
+    }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
   Widget _buildSelectionBar() {
     return Container(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -449,6 +549,16 @@ class _LibraryPageState extends State<LibraryPage> {
       _selected.add(id);
     }
     if (_selected.isEmpty) _selecting = false;
+  }
+
+  Color? _colorOf(dynamic color) {
+    if (color == null || color.toString().isEmpty) return null;
+    try {
+      final value = int.parse(color.toString(), radix: 16);
+      return Color(value);
+    } catch (_) {
+      return null;
+    }
   }
 
   String _size(dynamic v) {
