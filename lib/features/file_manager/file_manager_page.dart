@@ -11,6 +11,7 @@ import 'package:flutter_file_manager/core/services/file_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_file_manager/features/file_manager/file_manager_state.dart';
+import 'package:flutter_file_manager/features/library/library_page.dart';
 import 'package:flutter_file_manager/features/file_manager/widgets/breadcrumb_bar.dart';
 import 'package:flutter_file_manager/features/file_manager/widgets/file_list_tile.dart';
 import 'package:flutter_file_manager/features/file_manager/widgets/file_grid_tile.dart';
@@ -158,6 +159,16 @@ class _FileManagerView extends StatelessWidget {
             ),
             tooltip: tab.showHidden ? '隐藏隐藏文件' : '显示隐藏文件',
             onPressed: state.toggleHidden,
+          ),
+          IconButton(
+            icon: const Icon(Icons.library_books_outlined),
+            tooltip: '文件库（导入式管理）',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const LibraryPage(),
+              ),
+            ),
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.menu),

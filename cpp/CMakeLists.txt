@@ -149,6 +149,7 @@ if(EXISTS "${THIRD_PARTY_DIR}/include" AND EXISTS "${THIRD_PARTY_DIR}/lib")
             "${THIRD_PARTY_DIR}/lib/libswresample.a"
             "${THIRD_PARTY_DIR}/lib/libminiz.a"
             "${THIRD_PARTY_DIR}/lib/libstb_image.a"
+            "${THIRD_PARTY_DIR}/lib/libsqlite3.a"
         )
     endif()
     message(STATUS "[native] 第三方预编译库: ${THIRD_PARTY_DIR}")

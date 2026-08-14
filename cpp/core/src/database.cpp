@@ -1,109 +1,35 @@
 /*
- * database.cpp - database 模块实现（files/tags/file_tags 嵌入式持久化存储）
+ * database.cpp - database 模块实现（SQLite：files/tags/file_tags）
  *
- * 存储格式：data_dir/files.db，每行一条记录，字段以制表符分隔。
- *   F|<id>|<uuid>|<name>|<ext>|<mime>|<size>|<internal_path>|<source_path>|<source_type>|<is_dir>|<parent_id>|<import_time>|<deleted>
- *   T|<id>|<name>|<color>|<builtin>
- *   X|<file_id>|<tag_id>
- * 字符串字段中的 \t \n \\ 会被转义。
+ * 文件管理器的核心：把系统文件「导入」到内部 SQLite 数据库后管理。
+ * 依赖预编译 sqlite3（third_party/<platform>/lib/libsqlite3.a）。
  *
  * 对外统一返回 JSON（使用 json_builder），供 Dart FFI 解析。
  */
 
 #include "database.h"
 #include "json_builder.h"
+#include <sqlite3.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
 #include <vector>
-#include <map>
-#include <set>
 #include <filesystem>
-#include <fstream>
-#include <sstream>
 #include <chrono>
 
 namespace fs = std::filesystem;
 
 // ============================================================
-// 内部数据结构
+// 全局（单数据库）
 // ============================================================
-struct FileRecord {
-    long long id;
-    std::string uuid;
-    std::string name;
-    std::string ext;
-    std::string mime;
-    long long size;
-    std::string internal_path;
-    std::string source_path;
-    std::string source_type;
-    int is_dir;
-    long long parent_id;
-    long long import_time;
-    int deleted;
-};
-
-struct TagRecord {
-    long long id;
-    std::string name;
-    std::string color;
-    int builtin;
-};
-
-// ============================================================
-// 全局状态（单数据库）
-// ============================================================
+static sqlite3 *g_db = nullptr;
 static std::string g_data_dir;
-static std::vector<FileRecord> g_files;
-static std::vector<TagRecord> g_tags;
-static std::map<long long, std::set<long long>> g_file_tags; // file_id -> {tag_id}
-static long long g_next_file_id = 1;
-static long long g_next_tag_id = 1;
 
 // ============================================================
 // 工具
 // ============================================================
-static std::string db_escape(const std::string &s) {
-    std::string out;
-    for (char c : s) {
-        if (c == '\\') out += "\\\\";
-        else if (c == '\t') out += "\\t";
-        else if (c == '\n') out += "\\n";
-        else out += c;
-    }
-    return out;
-}
-
-static std::string db_unescape(const std::string &s) {
-    std::string out;
-    for (size_t i = 0; i < s.size(); i++) {
-        if (s[i] == '\\' && i + 1 < s.size()) {
-            char n = s[i + 1];
-            if (n == 't') { out += '\t'; i++; }
-            else if (n == 'n') { out += '\n'; i++; }
-            else if (n == '\\') { out += '\\'; i++; }
-            else out += s[i];
-        } else {
-            out += s[i];
-        }
-    }
-    return out;
-}
-
-static std::vector<std::string> split(const std::string &s, char delim) {
-    std::vector<std::string> parts;
-    std::string cur;
-    for (char c : s) {
-        if (c == delim) { parts.push_back(cur); cur.clear(); }
-        else cur += c;
-    }
-    parts.push_back(cur);
-    return parts;
-}
-
 static long long now_epoch() {
     return std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
@@ -118,7 +44,7 @@ static std::string file_ext(const std::string &name) {
 }
 
 static const char *ext_mime(const std::string &ext) {
-    static const std::map<std::string, const char*> m = {
+    static const struct { const char *e, *m; } m[] = {
         {"png","image/png"},{"jpg","image/jpeg"},{"jpeg","image/jpeg"},{"gif","image/gif"},
         {"webp","image/webp"},{"bmp","image/bmp"},{"tiff","image/tiff"},{"ico","image/x-icon"},
         {"mp4","video/mp4"},{"mkv","video/x-matroska"},{"mov","video/quicktime"},
@@ -130,148 +56,132 @@ static const char *ext_mime(const std::string &ext) {
         {"json","application/json"},{"xml","application/xml"},{"csv","text/csv"},
         {"html","text/html"},{"htm","text/html"},
     };
-    auto it = m.find(ext);
-    return it != m.end() ? it->second : "application/octet-stream";
+    for (auto &p : m) if (ext == p.e) return p.m;
+    return "application/octet-stream";
 }
 
-// 默认标签：按扩展名分类
-static const char *default_tags_for_ext(const std::string &ext) {
-    static const std::set<std::string> img = {"png","jpg","jpeg","gif","webp","bmp","tiff","ico"};
-    static const std::set<std::string> vid = {"mp4","mkv","mov","webm","avi","3gp","flv"};
-    static const std::set<std::string> aud = {"mp3","wav","flac","aac","ogg","m4a","opus"};
-    static const std::set<std::string> arc = {"zip","7z","rar","tar","gz","bz2"};
-    static const std::set<std::string> ebo = {"epub","mobi","azw3"};
-    static const std::set<std::string> doc = {"pdf","doc","docx","xls","xlsx","ppt","pptx","odt","ods","csv"};
-    static const std::set<std::string> cod = {"c","cpp","h","hpp","java","py","js","ts","go","rs","dart","sh","rb","php"};
-    if (img.count(ext)) return "图片";
-    if (vid.count(ext)) return "视频";
-    if (aud.count(ext)) return "音频";
-    if (arc.count(ext)) return "压缩包";
-    if (ebo.count(ext)) return "电子书";
-    if (doc.count(ext)) return "文档";
-    if (cod.count(ext)) return "代码";
+static const char *default_tag_for_ext(const std::string &ext) {
+    static const struct { const char *e; const char *tag; } t[] = {
+        {"png","图片"},{"jpg","图片"},{"jpeg","图片"},{"gif","图片"},{"webp","图片"},
+        {"bmp","图片"},{"tiff","图片"},{"ico","图片"},
+        {"mp4","视频"},{"mkv","视频"},{"mov","视频"},{"webm","视频"},{"avi","视频"},
+        {"3gp","视频"},{"flv","视频"},
+        {"mp3","音频"},{"wav","音频"},{"flac","音频"},{"aac","音频"},{"ogg","音频"},
+        {"m4a","音频"},{"opus","音频"},
+        {"zip","压缩包"},{"7z","压缩包"},{"rar","压缩包"},{"tar","压缩包"},{"gz","压缩包"},
+        {"epub","电子书"},{"mobi","电子书"},{"azw3","电子书"},
+        {"pdf","文档"},{"doc","文档"},{"docx","文档"},{"xls","文档"},{"xlsx","文档"},
+        {"ppt","文档"},{"pptx","文档"},{"odt","文档"},{"csv","文档"},
+        {"c","代码"},{"cpp","代码"},{"h","代码"},{"hpp","代码"},{"java","代码"},
+        {"py","代码"},{"js","代码"},{"ts","代码"},{"go","代码"},{"rs","代码"},
+        {"dart","代码"},{"sh","代码"},{"rb","代码"},{"php","代码"},
+    };
+    for (auto &p : t) if (ext == p.e) return p.tag;
     return "其他";
 }
 
-// ============================================================
-// 持久化
-// ============================================================
-static std::string store_path() { return g_data_dir + "/files.db"; }
-
-static void store_save() {
-    if (g_data_dir.empty()) return;
-    std::ofstream f(store_path(), std::ios::trunc);
-    if (!f) return;
-    for (auto &r : g_files) {
-        f << "F\t" << r.id << "\t" << db_escape(r.uuid) << "\t" << db_escape(r.name)
-          << "\t" << db_escape(r.ext) << "\t" << db_escape(r.mime) << "\t" << r.size
-          << "\t" << db_escape(r.internal_path) << "\t" << db_escape(r.source_path)
-          << "\t" << db_escape(r.source_type) << "\t" << r.is_dir << "\t" << r.parent_id
-          << "\t" << r.import_time << "\t" << r.deleted << "\n";
+// 拆分逗号分隔
+static std::vector<std::string> split_csv(const char *s) {
+    std::vector<std::string> out;
+    if (!s) return out;
+    std::string cur;
+    for (const char *p = s; *p; p++) {
+        if (*p == ',') { out.push_back(cur); cur.clear(); }
+        else cur += *p;
     }
-    for (auto &t : g_tags) {
-        f << "T\t" << t.id << "\t" << db_escape(t.name) << "\t" << db_escape(t.color)
-          << "\t" << t.builtin << "\n";
-    }
-    for (auto &kv : g_file_tags) {
-        for (long long tid : kv.second) {
-            f << "X\t" << kv.first << "\t" << tid << "\n";
-        }
-    }
-    f.close();
-}
-
-static void store_load() {
-    g_files.clear(); g_tags.clear(); g_file_tags.clear();
-    if (g_data_dir.empty()) return;
-    std::ifstream f(store_path());
-    if (!f) return;
-    std::string line;
-    while (std::getline(f, line)) {
-        if (line.empty()) continue;
-        auto p = split(line, '\t');
-        if (p.empty()) continue;
-        if (p[0] == "F" && p.size() >= 14) {
-            FileRecord r;
-            r.id = atoll(p[1].c_str());
-            r.uuid = db_unescape(p[2]);
-            r.name = db_unescape(p[3]);
-            r.ext = db_unescape(p[4]);
-            r.mime = db_unescape(p[5]);
-            r.size = atoll(p[6].c_str());
-            r.internal_path = db_unescape(p[7]);
-            r.source_path = db_unescape(p[8]);
-            r.source_type = db_unescape(p[9]);
-            r.is_dir = atoi(p[10].c_str());
-            r.parent_id = atoll(p[11].c_str());
-            r.import_time = atoll(p[12].c_str());
-            r.deleted = atoi(p[13].c_str());
-            if (r.id >= g_next_file_id) g_next_file_id = r.id + 1;
-            g_files.push_back(r);
-        } else if (p[0] == "T" && p.size() >= 5) {
-            TagRecord t;
-            t.id = atoll(p[1].c_str());
-            t.name = db_unescape(p[2]);
-            t.color = db_unescape(p[3]);
-            t.builtin = atoi(p[4].c_str());
-            if (t.id >= g_next_tag_id) g_next_tag_id = t.id + 1;
-            g_tags.push_back(t);
-        } else if (p[0] == "X" && p.size() >= 3) {
-            long long fid = atoll(p[1].c_str());
-            long long tid = atoll(p[2].c_str());
-            g_file_tags[fid].insert(tid);
-        }
-    }
-    f.close();
+    out.push_back(cur);
+    return out;
 }
 
 // ============================================================
-// JSON 输出
+// SQLite 初始化 / 建表
 // ============================================================
-static void file_to_json(JsonBuilder *jb, const FileRecord &r) {
-    jb_append_str(jb, "{\"id\":");    jb_append_int(jb, r.id);
-    jb_append_str(jb, ",\"name\":");  jb_append_esc(jb, r.name.c_str());
-    jb_append_str(jb, ",\"ext\":");   jb_append_esc(jb, r.ext.c_str());
-    jb_append_str(jb, ",\"mime\":");  jb_append_esc(jb, r.mime.c_str());
-    jb_append_str(jb, ",\"size\":");  jb_append_int(jb, r.size);
-    jb_append_str(jb, ",\"path\":");  jb_append_esc(jb, r.internal_path.c_str());
-    jb_append_str(jb, ",\"source\":"); jb_append_esc(jb, r.source_path.c_str());
-    jb_append_str(jb, ",\"sourceType\":"); jb_append_esc(jb, r.source_type.c_str());
-    jb_append_str(jb, ",\"isDir\":"); jb_append_int(jb, r.is_dir);
-    jb_append_str(jb, ",\"parentId\":"); jb_append_int(jb, r.parent_id);
-    jb_append_str(jb, ",\"importTime\":"); jb_append_int(jb, r.import_time);
-    jb_append_str(jb, ",\"deleted\":"); jb_append_int(jb, r.deleted);
+static int db_exec(const char *sql) {
+    char *err = nullptr;
+    if (sqlite3_exec(g_db, sql, nullptr, nullptr, &err) != SQLITE_OK) {
+        sqlite3_free(err);
+        return -1;
+    }
+    return 0;
+}
+
+static long long last_insert_id() { return sqlite3_last_insert_rowid(g_db); }
+
+// 确保标签存在，返回其 id
+static long long ensure_tag(const char *name) {
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "SELECT id FROM tags WHERE name=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, name, -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(st) == SQLITE_ROW) {
+            long long id = sqlite3_column_int64(st, 0);
+            sqlite3_finalize(st);
+            return id;
+        }
+        sqlite3_finalize(st);
+    }
+    sqlite3_stmt *ins;
+    if (sqlite3_prepare_v2(g_db, "INSERT INTO tags(name,color,builtin) VALUES(?,?,0)", -1, &ins, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(ins, 1, name, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(ins, 2, "", -1, SQLITE_STATIC);
+        sqlite3_step(ins);
+        long long id = last_insert_id();
+        sqlite3_finalize(ins);
+        return id;
+    }
+    return -1;
+}
+
+// ============================================================
+// JSON 输出（把一行 files 结果转为 JSON）
+// ============================================================
+static void file_row_to_json(JsonBuilder *jb, sqlite3_stmt *st) {
+    jb_append_str(jb, "{\"id\":");        jb_append_int(jb, sqlite3_column_int64(st, 0));
+    jb_append_str(jb, ",\"name\":");      jb_append_esc(jb, (const char*)sqlite3_column_text(st, 1));
+    jb_append_str(jb, ",\"ext\":");       jb_append_esc(jb, (const char*)sqlite3_column_text(st, 2));
+    jb_append_str(jb, ",\"mime\":");      jb_append_esc(jb, (const char*)sqlite3_column_text(st, 3));
+    jb_append_str(jb, ",\"size\":");      jb_append_int(jb, sqlite3_column_int64(st, 4));
+    jb_append_str(jb, ",\"path\":");      jb_append_esc(jb, (const char*)sqlite3_column_text(st, 5));
+    jb_append_str(jb, ",\"source\":");    jb_append_esc(jb, (const char*)sqlite3_column_text(st, 6));
+    jb_append_str(jb, ",\"sourceType\":"); jb_append_esc(jb, (const char*)sqlite3_column_text(st, 7));
+    jb_append_str(jb, ",\"isDir\":");     jb_append_int(jb, sqlite3_column_int(st, 8));
+    jb_append_str(jb, ",\"parentId\":");  jb_append_int(jb, sqlite3_column_int64(st, 9));
+    jb_append_str(jb, ",\"importTime\":"); jb_append_int(jb, sqlite3_column_int64(st, 10));
+    jb_append_str(jb, ",\"deleted\":");   jb_append_int(jb, sqlite3_column_int(st, 11));
     jb_append_str(jb, ",\"tags\":[");
+    long long fid = sqlite3_column_int64(st, 0);
+    sqlite3_stmt *ts = nullptr;
     bool first = true;
-    auto it = g_file_tags.find(r.id);
-    if (it != g_file_tags.end()) {
-        for (long long tid : it->second) {
-            for (auto &t : g_tags) {
-                if (t.id == tid) {
-                    if (!first) jb_append_str(jb, ",");
-                    first = false;
-                    jb_append_str(jb, "{\"id\":"); jb_append_int(jb, t.id);
-                    jb_append_str(jb, ",\"name\":"); jb_append_esc(jb, t.name.c_str());
-                    jb_append_str(jb, ",\"color\":"); jb_append_esc(jb, t.color.c_str());
-                    jb_append_str(jb, "}");
-                    break;
-                }
-            }
+    if (sqlite3_prepare_v2(g_db,
+            "SELECT t.id,t.name,t.color FROM file_tags ft JOIN tags t ON t.id=ft.tag_id WHERE ft.file_id=?",
+            -1, &ts, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(ts, 1, fid);
+        while (sqlite3_step(ts) == SQLITE_ROW) {
+            if (!first) jb_append_str(jb, ",");
+            first = false;
+            jb_append_str(jb, "{\"id\":"); jb_append_int(jb, sqlite3_column_int64(ts, 0));
+            jb_append_str(jb, ",\"name\":"); jb_append_esc(jb, (const char*)sqlite3_column_text(ts, 1));
+            jb_append_str(jb, ",\"color\":"); jb_append_esc(jb, (const char*)sqlite3_column_text(ts, 2));
+            jb_append_str(jb, "}");
         }
+        sqlite3_finalize(ts);
     }
     jb_append_str(jb, "]}");
 }
 
-static char *file_list_json(const std::vector<FileRecord> &files, const char *err) {
+// 执行一条查询并把结果行转成 JSON items 数组
+static char *query_files_json(const char *sql, int bind_int, sqlite3_int64 param) {
     JsonBuilder jb = jb_new();
-    jb_append_str(&jb, "{\"error\":");
-    jb_append_esc(&jb, err ? err : "");
-    jb_append_str(&jb, ",\"items\":[");
-    bool first = true;
-    for (auto &r : files) {
-        if (!first) jb_append_str(&jb, ",");
-        first = false;
-        file_to_json(&jb, r);
+    jb_append_str(&jb, "{\"error\":\"\",\"items\":[");
+    sqlite3_stmt *st = nullptr;
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, nullptr) == SQLITE_OK) {
+        if (bind_int) sqlite3_bind_int64(st, 1, param);
+        bool first = true;
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            if (!first) jb_append_str(&jb, ",");
+            first = false;
+            file_row_to_json(&jb, st);
+        }
+        sqlite3_finalize(st);
     }
     jb_append_str(&jb, "]}");
     return jb_finish(&jb);
@@ -280,26 +190,32 @@ static char *file_list_json(const std::vector<FileRecord> &files, const char *er
 // ============================================================
 // FFI 实现
 // ============================================================
-static FileRecord *find_file(long long id) {
-    for (auto &r : g_files) if (r.id == id) return &r;
-    return nullptr;
-}
-
-static long long ensure_tag(const std::string &name) {
-    for (auto &t : g_tags) if (t.name == name) return t.id;
-    TagRecord t; t.id = g_next_tag_id++; t.name = name; t.color = ""; t.builtin = 0;
-    g_tags.push_back(t);
-    return t.id;
-}
-
 extern "C" {
 
 char *db_init(const char *data_dir) {
     g_data_dir = data_dir ? data_dir : "";
-    if (!g_data_dir.empty()) {
-        try { fs::create_directories(g_data_dir + "/files"); } catch (...) {}
+    if (g_db) { sqlite3_close(g_db); g_db = nullptr; }
+    if (g_data_dir.empty()) return strdup("{\"error\":\"no data dir\"}");
+    try { fs::create_directories(g_data_dir + "/files"); } catch (...) {}
+    std::string dbpath = g_data_dir + "/files.db";
+    if (sqlite3_open(dbpath.c_str(), &g_db) != SQLITE_OK) {
+        sqlite3_close(g_db); g_db = nullptr;
+        return strdup("{\"error\":\"open failed\"}");
     }
-    store_load();
+    const char *schema =
+        "CREATE TABLE IF NOT EXISTS files("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " uuid TEXT, name TEXT NOT NULL, ext TEXT, mime TEXT,"
+        " size INTEGER DEFAULT 0, internal_path TEXT, source_path TEXT,"
+        " source_type TEXT, is_dir INTEGER DEFAULT 0, parent_id INTEGER DEFAULT 0,"
+        " import_time INTEGER, deleted INTEGER DEFAULT 0);"
+        "CREATE TABLE IF NOT EXISTS tags("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,"
+        " color TEXT, builtin INTEGER DEFAULT 0);"
+        "CREATE TABLE IF NOT EXISTS file_tags("
+        " file_id INTEGER NOT NULL, tag_id INTEGER NOT NULL,"
+        " PRIMARY KEY(file_id, tag_id));";
+    if (db_exec(schema) != 0) return strdup("{\"error\":\"schema\"}");
     return strdup("{\"error\":\"\"}");
 }
 
@@ -308,126 +224,131 @@ char *db_import_file(const char *src, const char *default_tags) {
     fs::path src_path(src);
     std::string name = src_path.filename().string();
     std::string ext = file_ext(name);
-    std::string uuid = std::to_string(now_epoch()) + "_" + std::to_string(g_next_file_id);
-    std::string dest_dir = g_data_dir + "/files";
-    std::string dest = dest_dir + "/" + uuid + "_" + name;
+    std::string uuid = std::to_string(now_epoch()) + "_" + name;
+    std::string dest = g_data_dir + "/files/" + uuid;
     try {
-        fs::create_directories(dest_dir);
+        fs::create_directories(g_data_dir + "/files");
         fs::copy_file(src_path, dest, fs::copy_options::overwrite_existing);
     } catch (...) {
         return strdup("{\"error\":\"copy failed\"}");
     }
+    long long size = 0;
+    try { size = (long long)fs::file_size(src_path); } catch (...) {}
 
-    FileRecord r;
-    r.id = g_next_file_id++;
-    r.uuid = uuid;
-    r.name = name;
-    r.ext = ext;
-    r.mime = ext_mime(ext);
-    r.size = (long long)fs::file_size(src_path);
-    r.internal_path = dest;
-    r.source_path = src;
-    r.source_type = "filesystem";
-    r.is_dir = 0;
-    r.parent_id = 0;
-    r.import_time = now_epoch();
-    r.deleted = 0;
-    g_files.push_back(r);
+    sqlite3_stmt *st;
+    const char *ins = "INSERT INTO files(uuid,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted)"
+                      " VALUES(?,?,?,?,?,?,?,?,0,0,?,0)";
+    if (sqlite3_prepare_v2(g_db, ins, -1, &st, nullptr) != SQLITE_OK) return strdup("{\"error\":\"insert\"}");
+    sqlite3_bind_text(st, 1, uuid.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 3, ext.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 4, ext_mime(ext), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(st, 5, size);
+    sqlite3_bind_text(st, 6, dest.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 7, src, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 8, "filesystem", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(st, 9, now_epoch());
+    if (sqlite3_step(st) != SQLITE_DONE) { sqlite3_finalize(st); return strdup("{\"error\":\"insert2\"}"); }
+    long long fid = last_insert_id();
+    sqlite3_finalize(st);
 
-    // 打默认标签（内置 + 传入）
-    long long def = ensure_tag(default_tags_for_ext(ext));
-    g_file_tags[r.id].insert(def);
-    if (default_tags && *default_tags) {
-        for (auto &name_part : split(default_tags, ',')) {
-            std::string tn = name_part;
-            if (!tn.empty()) g_file_tags[r.id].insert(ensure_tag(tn));
+    // 默认标签
+    long long def = ensure_tag(default_tag_for_ext(ext));
+    if (def > 0) {
+        sqlite3_stmt *ft;
+        if (sqlite3_prepare_v2(g_db, "INSERT OR IGNORE INTO file_tags(file_id,tag_id) VALUES(?,?)", -1, &ft, nullptr) == SQLITE_OK) {
+            sqlite3_bind_int64(ft, 1, fid); sqlite3_bind_int64(ft, 2, def);
+            sqlite3_step(ft); sqlite3_finalize(ft);
         }
     }
-    store_save();
+    if (default_tags && *default_tags) {
+        for (auto &t : split_csv(default_tags)) {
+            if (t.empty()) continue;
+            long long tid = ensure_tag(t.c_str());
+            sqlite3_stmt *ft;
+            if (sqlite3_prepare_v2(g_db, "INSERT OR IGNORE INTO file_tags(file_id,tag_id) VALUES(?,?)", -1, &ft, nullptr) == SQLITE_OK) {
+                sqlite3_bind_int64(ft, 1, fid); sqlite3_bind_int64(ft, 2, tid);
+                sqlite3_step(ft); sqlite3_finalize(ft);
+            }
+        }
+    }
 
-    JsonBuilder jb = jb_new();
-    jb_append_str(&jb, "{\"error\":\"\",\"item\":");
-    file_to_json(&jb, r);
-    jb_append_str(&jb, "}");
-    return jb_finish(&jb);
+    char sql[256];
+    snprintf(sql, sizeof(sql), "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted FROM files WHERE id=%lld", fid);
+    return query_files_json(sql, 0, 0);
 }
 
 char *db_list_files(int parent_id) {
-    std::vector<FileRecord> out;
-    for (auto &r : g_files) {
-        if (r.deleted) continue;
-        if (parent_id < 0 || r.parent_id == parent_id) out.push_back(r);
-    }
-    return file_list_json(out, "");
+    const char *sql = parent_id < 0
+        ? "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted FROM files WHERE deleted=0"
+        : "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted FROM files WHERE deleted=0 AND parent_id=?";
+    return query_files_json(sql, parent_id >= 0, parent_id);
 }
 
-char *db_list_all(void) {
-    std::vector<FileRecord> out;
-    for (auto &r : g_files) if (!r.deleted) out.push_back(r);
-    return file_list_json(out, "");
-}
+char *db_list_all(void) { return db_list_files(-1); }
 
 char *db_mkdir(const char *name, int parent_id) {
     if (!name || !*name) return strdup("{\"error\":\"empty name\"}");
-    FileRecord r;
-    r.id = g_next_file_id++;
-    r.uuid = "dir_" + std::to_string(r.id);
-    r.name = name;
-    r.ext = "";
-    r.mime = "inode/directory";
-    r.size = 0;
-    r.internal_path = "";
-    r.source_path = "";
-    r.source_type = "internal";
-    r.is_dir = 1;
-    r.parent_id = parent_id;
-    r.import_time = now_epoch();
-    r.deleted = 0;
-    g_files.push_back(r);
-    store_save();
-    JsonBuilder jb = jb_new();
-    jb_append_str(&jb, "{\"error\":\"\",\"item\":");
-    file_to_json(&jb, r);
-    jb_append_str(&jb, "}");
-    return jb_finish(&jb);
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "INSERT INTO files(uuid,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted)"
+        " VALUES('dir',?, '', 'inode/directory', 0, '', '', 'internal', 1, ?, ?, 0)", -1, &st, nullptr) != SQLITE_OK)
+        return strdup("{\"error\":\"mkdir\"}");
+    sqlite3_bind_text(st, 1, name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(st, 2, parent_id);
+    sqlite3_bind_int64(st, 3, now_epoch());
+    if (sqlite3_step(st) != SQLITE_DONE) { sqlite3_finalize(st); return strdup("{\"error\":\"mkdir2\"}"); }
+    long long id = last_insert_id();
+    sqlite3_finalize(st);
+    char sql[256];
+    snprintf(sql, sizeof(sql), "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted FROM files WHERE id=%lld", id);
+    return query_files_json(sql, 0, 0);
 }
 
 char *db_move(int file_id, int new_parent_id) {
-    FileRecord *r = find_file(file_id);
-    if (!r) return strdup("{\"error\":\"not found\"}");
-    r->parent_id = new_parent_id;
-    store_save();
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "UPDATE files SET parent_id=? WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int(st, 1, new_parent_id);
+        sqlite3_bind_int64(st, 2, file_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
     return strdup("{\"error\":\"\"}");
 }
 
 char *db_rename(int file_id, const char *name) {
-    FileRecord *r = find_file(file_id);
-    if (!r) return strdup("{\"error\":\"not found\"}");
-    if (name && *name) r->name = name;
-    store_save();
+    sqlite3_stmt *st;
+    if (name && *name && sqlite3_prepare_v2(g_db, "UPDATE files SET name=? WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, name, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(st, 2, file_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
     return strdup("{\"error\":\"\"}");
 }
 
 char *db_delete(int file_id) {
-    FileRecord *r = find_file(file_id);
-    if (!r) return strdup("{\"error\":\"not found\"}");
-    r->deleted = 1;
-    store_save();
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "UPDATE files SET deleted=1 WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, file_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
     return strdup("{\"error\":\"\"}");
 }
 
 char *db_tag_list(void) {
     JsonBuilder jb = jb_new();
     jb_append_str(&jb, "{\"error\":\"\",\"items\":[");
-    bool first = true;
-    for (auto &t : g_tags) {
-        if (!first) jb_append_str(&jb, ",");
-        first = false;
-        jb_append_str(&jb, "{\"id\":"); jb_append_int(&jb, t.id);
-        jb_append_str(&jb, ",\"name\":"); jb_append_esc(&jb, t.name.c_str());
-        jb_append_str(&jb, ",\"color\":"); jb_append_esc(&jb, t.color.c_str());
-        jb_append_str(&jb, ",\"builtin\":"); jb_append_int(&jb, t.builtin);
-        jb_append_str(&jb, "}");
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "SELECT id,name,color,builtin FROM tags ORDER BY name", -1, &st, nullptr) == SQLITE_OK) {
+        bool first = true;
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            if (!first) jb_append_str(&jb, ",");
+            first = false;
+            jb_append_str(&jb, "{\"id\":"); jb_append_int(&jb, sqlite3_column_int64(st, 0));
+            jb_append_str(&jb, ",\"name\":"); jb_append_esc(&jb, (const char*)sqlite3_column_text(st, 1));
+            jb_append_str(&jb, ",\"color\":"); jb_append_esc(&jb, (const char*)sqlite3_column_text(st, 2));
+            jb_append_str(&jb, ",\"builtin\":"); jb_append_int(&jb, sqlite3_column_int(st, 3));
+            jb_append_str(&jb, "}");
+        }
+        sqlite3_finalize(st);
     }
     jb_append_str(&jb, "]}");
     return jb_finish(&jb);
@@ -435,79 +356,80 @@ char *db_tag_list(void) {
 
 char *db_tag_create(const char *name, const char *color) {
     if (!name || !*name) return strdup("{\"error\":\"empty name\"}");
-    for (auto &t : g_tags) if (t.name == name) return strdup("{\"error\":\"exists\"}");
-    TagRecord t;
-    t.id = g_next_tag_id++;
-    t.name = name;
-    t.color = color ? color : "";
-    t.builtin = 0;
-    g_tags.push_back(t);
-    store_save();
-    JsonBuilder jb = jb_new();
-    jb_append_str(&jb, "{\"error\":\"\",\"id\":"); jb_append_int(&jb, t.id);
-    jb_append_str(&jb, ",\"name\":"); jb_append_esc(&jb, t.name.c_str());
-    jb_append_str(&jb, "}");
-    return jb_finish(&jb);
+    // 已存在则返回错误
+    sqlite3_stmt *ck;
+    if (sqlite3_prepare_v2(g_db, "SELECT id FROM tags WHERE name=?", -1, &ck, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(ck, 1, name, -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(ck) == SQLITE_ROW) { sqlite3_finalize(ck); return strdup("{\"error\":\"exists\"}"); }
+        sqlite3_finalize(ck);
+    }
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "INSERT INTO tags(name,color,builtin) VALUES(?,?,0)", -1, &st, nullptr) != SQLITE_OK)
+        return strdup("{\"error\":\"create\"}");
+    sqlite3_bind_text(st, 1, name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, color ? color : "", -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(st) != SQLITE_DONE) { sqlite3_finalize(st); return strdup("{\"error\":\"create2\"}"); }
+    long long id = last_insert_id();
+    sqlite3_finalize(st);
+    char buf[256];
+    snprintf(buf, sizeof(buf), "{\"error\":\"\",\"id\":%lld,\"name\":\"%s\"}", id, name);
+    return strdup(buf);
 }
 
 char *db_tag_add_to_files(const char *file_ids, const char *tag_ids) {
     if (!file_ids || !tag_ids) return strdup("{\"error\":\"bad args\"}");
     int added = 0;
-    for (auto &fs : split(file_ids, ',')) {
-        long long fid = atoll(fs.c_str());
-        if (fid <= 0 || !find_file(fid)) continue;
-        for (auto &ts : split(tag_ids, ',')) {
-            long long tid = atoll(ts.c_str());
+    for (auto &fid_s : split_csv(file_ids)) {
+        long long fid = atoll(fid_s.c_str());
+        if (fid <= 0) continue;
+        for (auto &tid_s : split_csv(tag_ids)) {
+            long long tid = atoll(tid_s.c_str());
             if (tid <= 0) continue;
-            bool exists = false;
-            for (auto &t : g_tags) if (t.id == tid) { exists = true; break; }
-            if (!exists) continue;
-            if (g_file_tags[fid].insert(tid).second) added++;
+            sqlite3_stmt *st;
+            if (sqlite3_prepare_v2(g_db, "INSERT OR IGNORE INTO file_tags(file_id,tag_id) VALUES(?,?)", -1, &st, nullptr) == SQLITE_OK) {
+                sqlite3_bind_int64(st, 1, fid); sqlite3_bind_int64(st, 2, tid);
+                if (sqlite3_step(st) == SQLITE_DONE && sqlite3_changes(g_db) > 0) added++;
+                sqlite3_finalize(st);
+            }
         }
     }
-    store_save();
-    JsonBuilder jb = jb_new();
-    jb_append_str(&jb, "{\"error\":\"\",\"added\":"); jb_append_int(&jb, added);
-    jb_append_str(&jb, "}");
-    return jb_finish(&jb);
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"error\":\"\",\"added\":%d}", added);
+    return strdup(buf);
 }
 
 char *db_tag_remove_from_file(int file_id, int tag_id) {
-    auto it = g_file_tags.find(file_id);
-    if (it != g_file_tags.end()) it->second.erase(tag_id);
-    store_save();
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "DELETE FROM file_tags WHERE file_id=? AND tag_id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, file_id); sqlite3_bind_int64(st, 2, tag_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
     return strdup("{\"error\":\"\"}");
 }
 
 char *db_files_by_tag(int tag_id) {
-    std::vector<FileRecord> out;
-    for (auto &kv : g_file_tags) {
-        if (kv.second.count(tag_id)) {
-            FileRecord *r = find_file(kv.first);
-            if (r && !r->deleted) out.push_back(*r);
-        }
-    }
-    return file_list_json(out, "");
+    const char *sql =
+        "SELECT f.id,f.name,f.ext,f.mime,f.size,f.internal_path,f.source_path,f.source_type,f.is_dir,f.parent_id,f.import_time,f.deleted"
+        " FROM files f JOIN file_tags ft ON ft.file_id=f.id WHERE ft.tag_id=? AND f.deleted=0";
+    return query_files_json(sql, 1, tag_id);
 }
 
 char *db_file_tags(int file_id) {
     JsonBuilder jb = jb_new();
     jb_append_str(&jb, "{\"error\":\"\",\"items\":[");
-    bool first = true;
-    auto it = g_file_tags.find(file_id);
-    if (it != g_file_tags.end()) {
-        for (long long tid : it->second) {
-            for (auto &t : g_tags) {
-                if (t.id == tid) {
-                    if (!first) jb_append_str(&jb, ",");
-                    first = false;
-                    jb_append_str(&jb, "{\"id\":"); jb_append_int(&jb, t.id);
-                    jb_append_str(&jb, ",\"name\":"); jb_append_esc(&jb, t.name.c_str());
-                    jb_append_str(&jb, "}");
-                    break;
-                }
-            }
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "SELECT t.id,t.name FROM file_tags ft JOIN tags t ON t.id=ft.tag_id WHERE ft.file_id=?",
+            -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, file_id);
+        bool first = true;
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            if (!first) jb_append_str(&jb, ",");
+            first = false;
+            jb_append_str(&jb, "{\"id\":"); jb_append_int(&jb, sqlite3_column_int64(st, 0));
+            jb_append_str(&jb, ",\"name\":"); jb_append_esc(&jb, (const char*)sqlite3_column_text(st, 1));
+            jb_append_str(&jb, "}");
         }
+        sqlite3_finalize(st);
     }
     jb_append_str(&jb, "]}");
     return jb_finish(&jb);
