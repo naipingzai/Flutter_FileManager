@@ -52,6 +52,10 @@ typedef DbTagAddDart = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
 typedef DbTagRemoveNative = Pointer<Utf8> Function(Int32, Int32);
 typedef DbTagRemoveDart = Pointer<Utf8> Function(int, int);
 
+// char* db_tag_delete(int tag_id)
+typedef DbTagDeleteNative = Pointer<Utf8> Function(Int32);
+typedef DbTagDeleteDart = Pointer<Utf8> Function(int);
+
 // char* db_files_by_tag(int tag_id)
 typedef DbFilesByTagNative = Pointer<Utf8> Function(Int32);
 typedef DbFilesByTagDart = Pointer<Utf8> Function(int);
@@ -81,6 +85,7 @@ class DatabaseNative {
   late final DbTagCreateDart dbTagCreate;
   late final DbTagAddDart dbTagAddToFiles;
   late final DbTagRemoveDart dbTagRemoveFromFile;
+  late final DbTagDeleteDart dbTagDelete;
   late final DbFilesByTagDart dbFilesByTag;
   late final DbFileTagsDart dbFileTags;
   late final DbFreeDart dbFreeString;
@@ -110,6 +115,7 @@ class DatabaseNative {
         _lib.lookupFunction<DbTagAddNative, DbTagAddDart>('db_tag_add_to_files');
     dbTagRemoveFromFile =
         _lib.lookupFunction<DbTagRemoveNative, DbTagRemoveDart>('db_tag_remove_from_file');
+    dbTagDelete = _lib.lookupFunction<DbTagDeleteNative, DbTagDeleteDart>('db_tag_delete');
     dbFilesByTag = _lib.lookupFunction<DbFilesByTagNative, DbFilesByTagDart>('db_files_by_tag');
     dbFileTags = _lib.lookupFunction<DbFileTagsNative, DbFileTagsDart>('db_file_tags');
     dbFreeString = _lib.lookupFunction<DbFreeNative, DbFreeDart>('db_free_string');
@@ -220,6 +226,8 @@ class DatabaseNative {
 
   String? tagRemoveFromFile(int fileId, int tagId) =>
       _err(_call(() => dbTagRemoveFromFile(fileId, tagId)));
+
+  String? tagDelete(int tagId) => _err(_call(() => dbTagDelete(tagId)));
 
   List<Map<String, dynamic>> filesByTag(int tagId) {
     final j = _call(() => dbFilesByTag(tagId));

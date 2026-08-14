@@ -56,6 +56,9 @@ char *db_tag_add_to_files(const char *file_ids, const char *tag_ids);
 // 从某文件移除某标签。
 char *db_tag_remove_from_file(int file_id, int tag_id);
 
+// 删除标签（同时清理 file_tags 关联）。
+char *db_tag_delete(int tag_id);
+
 // 按标签查询文件列表。
 char *db_files_by_tag(int tag_id);
 

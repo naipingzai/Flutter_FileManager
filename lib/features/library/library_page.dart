@@ -15,7 +15,12 @@ class _LibraryPageState extends State<LibraryPage> {
   List<Map<String, dynamic>> _files = [];
   List<Map<String, dynamic>> _tags = [];
   int? _filterTagId;
-  final Set<int> _selected = {}; // 多选的文件 id
+
+  // 库内目录导航
+  int _currentParent = 0; // 0=根目录
+  final List<({int id, String name})> _pathStack = [];
+
+  final Set<int> _selected = {};
   bool _selecting = false;
 
   @override
@@ -27,29 +32,54 @@ class _LibraryPageState extends State<LibraryPage> {
   void _load() {
     setState(() {
       _tags = _db.tags();
-      _files = _filterTagId == null ? _db.listAll() : _db.filesByTag(_filterTagId!);
+      _files = _filterTagId == null ? _db.listFiles(_currentParent) : _db.filesByTag(_filterTagId!);
     });
-  }
-
-  Future<void> _import() async {
-    const typeGroup = XTypeGroup(label: '任意文件', extensions: []);
-    final file = await openFile(acceptedTypeGroups: const [typeGroup]);
-    if (file == null) return;
-    final src = file.path;
-    if (src.isEmpty) return;
-    final result = _db.importFile(src);
-    if (result == null) {
-      _snack('导入失败');
-    } else {
-      _snack('已导入: ${result['name']}');
-    }
-    _load();
   }
 
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  // ---------- 导入 ----------
+  Future<void> _import() async {
+    const typeGroup = XTypeGroup(label: '任意文件', extensions: []);
+    final files = await openFiles(acceptedTypeGroups: const [typeGroup]);
+    if (files.isEmpty) return;
+    int ok = 0;
+    for (final f in files) {
+      final src = f.path;
+      if (src.isEmpty) continue;
+      if (_db.importFile(src) != null) ok++;
+    }
+    _snack('导入完成：$ok/${files.length}');
+    _load();
+  }
+
+  // ---------- 新建目录 ----------
+  Future<void> _mkdir() async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('新建目录'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '目录名'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('创建')),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      _db.mkdir(name, _currentParent);
+      _load();
+    }
+  }
+
+  // ---------- 标签 ----------
   Future<void> _createTag() async {
     final ctrl = TextEditingController();
     final name = await showDialog<String>(
@@ -63,12 +93,31 @@ class _LibraryPageState extends State<LibraryPage> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('创建')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('创建')),
         ],
       ),
     );
     if (name != null && name.isNotEmpty) {
       _db.createTag(name);
+      _load();
+    }
+  }
+
+  Future<void> _deleteTag(Map<String, dynamic> tag) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除标签'),
+        content: Text('确定删除标签「${tag['name']}」？会从所有文件移除。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      _db.deleteTag(tag['id'] as int);
+      if (_filterTagId == tag['id']) setState(() => _filterTagId = null);
       _load();
     }
   }
@@ -89,28 +138,117 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
+  // ---------- 文件操作 ----------
+  Future<void> _renameFile(int id, String oldName) async {
+    final ctrl = TextEditingController(text: oldName);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重命名'),
+        content: TextField(controller: ctrl, autofocus: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('确定')),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      _db.rename(id, name);
+      _load();
+    }
+  }
+
+  Future<void> _deleteFiles(List<int> ids) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除'),
+        content: Text('从库中删除 ${ids.length} 项？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      for (final id in ids) {
+        _db.delete(id);
+      }
+      setState(() => _selected.clear());
+      _load();
+    }
+  }
+
+  Future<void> _moveToFolder(List<int> ids) async {
+    // 收集库内目录作为目标
+    final dirs = _db.listAll().where((f) => (f['isDir'] ?? 0) == 1).toList();
+    final target = await showDialog<int?>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('移动到文件夹'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 0),
+            child: const Text('根目录'),
+          ),
+          for (final d in dirs)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, d['id'] as int),
+              child: Text(d['name'].toString()),
+            ),
+        ],
+      ),
+    );
+    if (target != null) {
+      for (final id in ids) {
+        _db.move(id, target);
+      }
+      setState(() => _selected.clear());
+      _load();
+    }
+  }
+
+  // ---------- 目录导航 ----------
+  void _enterDir(Map<String, dynamic> dir) {
+    setState(() {
+      _pathStack.add((id: dir['id'] as int, name: dir['name'].toString()));
+      _currentParent = dir['id'] as int;
+      _filterTagId = null;
+    });
+    _load();
+  }
+
+  void _goBack() {
+    if (_pathStack.isEmpty) return;
+    setState(() {
+      _pathStack.removeLast();
+      _currentParent = _pathStack.isEmpty ? 0 : _pathStack.last.id;
+    });
+    _load();
+  }
+
+  void _resetToRoot() {
+    setState(() {
+      _pathStack.clear();
+      _currentParent = 0;
+      _filterTagId = null;
+    });
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('文件库'),
+        title: Text(_filterTagId != null ? '标签: ${_tagName(_filterTagId)}' : _currentPathText),
+        leading: _pathStack.isNotEmpty
+            ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
+            : null,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: '导入文件',
-            onPressed: _import,
-          ),
-          IconButton(
-            icon: const Icon(Icons.new_label_outlined),
-            tooltip: '新建标签',
-            onPressed: _createTag,
-          ),
-          if (_selected.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.sell_outlined),
-              tooltip: '批量加标签',
-              onPressed: _addTagsToSelected,
-            ),
+          IconButton(icon: const Icon(Icons.add), tooltip: '导入文件', onPressed: _import),
+          IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: '新建目录', onPressed: _mkdir),
+          IconButton(icon: const Icon(Icons.new_label_outlined), tooltip: '新建标签', onPressed: _createTag),
+          IconButton(icon: const Icon(Icons.home), tooltip: '根目录', onPressed: _resetToRoot),
         ],
       ),
       body: Column(
@@ -120,7 +258,21 @@ class _LibraryPageState extends State<LibraryPage> {
           Expanded(child: _buildFileList()),
         ],
       ),
+      bottomNavigationBar: _selecting ? _buildSelectionBar() : null,
     );
+  }
+
+  String get _currentPathText {
+    if (_pathStack.isEmpty) return '文件库';
+    return _pathStack.map((e) => e.name).join('/');
+  }
+
+  String _tagName(int? id) {
+    if (id == null) return '';
+    for (final t in _tags) {
+      if (t['id'] == id) return t['name'].toString();
+    }
+    return '?';
   }
 
   Widget _buildTagBar() {
@@ -131,31 +283,38 @@ class _LibraryPageState extends State<LibraryPage> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         children: [
           _tagChip(null, '全部', _filterTagId == null),
-          for (final t in _tags) _tagChip(t['id'], t['name'], _filterTagId == t['id']),
+          for (final t in _tags) _tagChip(t['id'], t['name'], _filterTagId == t['id'], tag: t),
         ],
       ),
     );
   }
 
-  Widget _tagChip(dynamic id, String name, bool selected) {
+  Widget _tagChip(dynamic id, String name, bool selected, {Map<String, dynamic>? tag}) {
+    final chip = ChoiceChip(
+      label: Text(name),
+      selected: selected,
+      onSelected: (_) {
+        setState(() {
+          _filterTagId = id as int?;
+          _currentParent = 0;
+          _pathStack.clear();
+        });
+        _load();
+      },
+    );
+    if (tag == null) return Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: chip);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: ChoiceChip(
-        label: Text(name),
-        selected: selected,
-        onSelected: (_) {
-          setState(() {
-            _filterTagId = id as int?;
-            _load();
-          });
-        },
+      child: GestureDetector(
+        onLongPress: () => _deleteTag(tag),
+        child: chip,
       ),
     );
   }
 
   Widget _buildFileList() {
     if (_files.isEmpty) {
-      return const Center(child: Text('暂无导入文件，点右上角 + 导入'));
+      return const Center(child: Text('暂无内容，点右上角导入或新建目录'));
     }
     return ListView.builder(
       itemCount: _files.length,
@@ -165,25 +324,33 @@ class _LibraryPageState extends State<LibraryPage> {
         final isDir = (f['isDir'] ?? 0) == 1;
         final isSel = _selected.contains(id);
         final tags = (f['tags'] as List?) ?? [];
+        final title = Text(f['name'].toString());
+        final subtitle = Wrap(
+          spacing: 4,
+          runSpacing: 2,
+          children: [
+            if ((f['size'] ?? 0) > 0)
+              Text(_size(f['size']), style: const TextStyle(fontSize: 11)),
+            for (final t in tags)
+              Chip(
+                label: Text(t['name'].toString()),
+                labelStyle: const TextStyle(fontSize: 11),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+          ],
+        );
+        final leading = Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 32);
+        final trailing = (_selecting || isSel)
+            ? Icon(isSel ? Icons.check_circle : Icons.circle_outlined,
+                color: isSel ? Colors.blue : Colors.grey)
+            : null;
+
         return ListTile(
-          leading: Icon(isDir ? Icons.folder : _typeIcon(f['ext'])),
-          title: Text(f['name'].toString()),
-          subtitle: Wrap(
-            spacing: 4,
-            runSpacing: 2,
-            children: [
-              for (final t in tags)
-                Chip(
-                  label: Text(t['name'].toString()),
-                  labelStyle: const TextStyle(fontSize: 11),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-            ],
-          ),
-          trailing: _selecting || isSel
-              ? Icon(isSel ? Icons.check_circle : Icons.circle_outlined, color: isSel ? Colors.blue : Colors.grey)
-              : null,
+          leading: leading,
+          title: title,
+          subtitle: subtitle,
+          trailing: trailing,
           selected: isSel,
           onLongPress: () => setState(() {
             _selecting = true;
@@ -192,13 +359,86 @@ class _LibraryPageState extends State<LibraryPage> {
           onTap: () {
             if (_selecting) {
               setState(() => _toggleSelect(id));
+            } else if (isDir) {
+              _enterDir(f);
             } else {
-              // 目录可进入（库内目录树），此处暂作提示
-              if (isDir) _snack('库内目录导航开发中');
+              _onFileMenu(f);
             }
           },
         );
       },
+    );
+  }
+
+  void _onFileMenu(Map<String, dynamic> f) {
+    final id = f['id'] as int;
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.sell_outlined),
+              title: const Text('添加标签'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _selecting = true;
+                  _selected.add(id);
+                });
+                _addTagsToSelected();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move_outlined),
+              title: const Text('移动到文件夹'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _moveToFolder([id]);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('重命名'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _renameFile(id, f['name'].toString());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('删除'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _deleteFiles([id]);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectionBar() {
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: SafeArea(
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text('${_selected.length} 已选'),
+            ),
+            IconButton(icon: const Icon(Icons.sell_outlined), tooltip: '加标签', onPressed: _addTagsToSelected),
+            IconButton(icon: const Icon(Icons.drive_file_move_outlined), tooltip: '移动', onPressed: () => _moveToFolder(_selected.toList())),
+            IconButton(icon: const Icon(Icons.delete_outline), tooltip: '删除', onPressed: () => _deleteFiles(_selected.toList())),
+            IconButton(icon: const Icon(Icons.close), tooltip: '取消', onPressed: () => setState(() {
+              _selecting = false;
+              _selected.clear();
+            })),
+          ],
+        ),
+      ),
     );
   }
 
@@ -209,6 +449,13 @@ class _LibraryPageState extends State<LibraryPage> {
       _selected.add(id);
     }
     if (_selected.isEmpty) _selecting = false;
+  }
+
+  String _size(dynamic v) {
+    final n = (v is int) ? v : (v?.toInt() ?? 0);
+    if (n < 1024) return '$n B';
+    if (n < 1048576) return '${(n / 1024).toStringAsFixed(1)} KB';
+    return '${(n / 1048576).toStringAsFixed(1)} MB';
   }
 
   IconData _typeIcon(String? ext) {

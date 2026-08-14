@@ -407,6 +407,19 @@ char *db_tag_remove_from_file(int file_id, int tag_id) {
     return strdup("{\"error\":\"\"}");
 }
 
+char *db_tag_delete(int tag_id) {
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "DELETE FROM file_tags WHERE tag_id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, tag_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
+    if (sqlite3_prepare_v2(g_db, "DELETE FROM tags WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, tag_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
+    return strdup("{\"error\":\"\"}");
+}
+
 char *db_files_by_tag(int tag_id) {
     const char *sql =
         "SELECT f.id,f.name,f.ext,f.mime,f.size,f.internal_path,f.source_path,f.source_type,f.is_dir,f.parent_id,f.import_time,f.deleted"

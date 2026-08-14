@@ -67,6 +67,8 @@ class DatabaseService {
   String? removeTagFromFile(int fileId, int tagId) =>
       _db.tagRemoveFromFile(fileId, tagId);
 
+  String? deleteTag(int tagId) => _db.tagDelete(tagId);
+
   List<Map<String, dynamic>> filesByTag(int tagId) => _db.filesByTag(tagId);
 
   List<Map<String, dynamic>> fileTags(int fileId) => _db.fileTags(fileId);
