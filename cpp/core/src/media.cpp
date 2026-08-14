@@ -141,6 +141,58 @@ char *media_decode_image_buffer(const unsigned char *data, int len) {
     return decode_image_bytes(data, len);
 }
 
+// 生成图片缩略图：解码并用盒式采样缩放到 max_size 内，返回小尺寸 RGBA(base64)
+char *media_make_thumbnail(const char *path, int max_size) {
+    if (max_size <= 0) max_size = 256;
+    int len = 0;
+    unsigned char *data = read_file_bytes(path, &len);
+    if (!data) return strdup_std("{\"error\":\"read failed\",\"base64\":\"\",\"width\":0,\"height\":0}");
+    int w = 0, h = 0, comp = 0;
+    unsigned char *img = stbi_load_from_memory(data, len, &w, &h, &comp, 4);
+    free(data);
+    if (!img || w <= 0 || h <= 0) {
+        if (img) stbi_image_free(img);
+        return strdup_std("{\"error\":\"decode\",\"base64\":\"\",\"width\":0,\"height\":0}");
+    }
+    int m = w > h ? w : h;
+    float scale = 1.0f;
+    if (m > max_size) scale = (float)max_size / (float)m;
+    int tw = (int)(w * scale); if (tw < 1) tw = 1;
+    int th = (int)(h * scale); if (th < 1) th = 1;
+    unsigned char *thumb = (unsigned char *)malloc((size_t)tw * th * 4);
+    if (!thumb) { stbi_image_free(img); return strdup_std("{\"error\":\"alloc\",\"base64\":\"\",\"width\":0,\"height\":0}"); }
+    // 盒式采样（平均 2x2 块，简单近似）
+    for (int y = 0; y < th; y++) {
+        for (int x = 0; x < tw; x++) {
+            int sx0 = (int)((x) / scale), sx1 = (int)((x + 1) / scale);
+            int sy0 = (int)((y) / scale), sy1 = (int)((y + 1) / scale);
+            if (sx1 > w) sx1 = w;
+            if (sy1 > h) sy1 = h;
+            int cnt = (sx1 - sx0) * (sy1 - sy0); if (cnt < 1) cnt = 1;
+            unsigned int r = 0, g = 0, b = 0, a = 0;
+            for (int sy = sy0; sy < sy1; sy++)
+                for (int sx = sx0; sx < sx1; sx++) {
+                    const unsigned char *p = img + ((size_t)sy * w + sx) * 4;
+                    r += p[0]; g += p[1]; b += p[2]; a += p[3];
+                }
+            unsigned char *o = thumb + ((size_t)y * tw + x) * 4;
+            o[0] = (unsigned char)(r / cnt); o[1] = (unsigned char)(g / cnt);
+            o[2] = (unsigned char)(b / cnt); o[3] = (unsigned char)(a / cnt);
+        }
+    }
+    stbi_image_free(img);
+    int b64_len = 0;
+    char *b64 = base64_encode(thumb, tw * th * 4, &b64_len);
+    free(thumb);
+    if (!b64) return strdup_std("{\"error\":\"alloc\",\"base64\":\"\",\"width\":0,\"height\":0}");
+    size_t out_len = (size_t)b64_len + 128;
+    char *out = (char *)malloc(out_len);
+    if (!out) { free(b64); return strdup_std("{\"error\":\"alloc\",\"base64\":\"\",\"width\":0,\"height\":0}"); }
+    snprintf(out, out_len, "{\"error\":\"\",\"base64\":\"%s\",\"width\":%d,\"height\":%d}", b64, tw, th);
+    free(b64);
+    return out;
+}
+
 // ============================================================
 // 电子书 EPUB（miniz）
 // ============================================================

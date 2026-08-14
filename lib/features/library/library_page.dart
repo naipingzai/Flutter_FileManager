@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:ui' as ui;
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_file_manager/core/native/media_ffi.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
 import 'package:flutter_file_manager/features/viewer/audio/audio_player_page.dart';
@@ -526,7 +531,14 @@ class _LibraryPageState extends State<LibraryPage> {
           children: [
             Stack(
               children: [
-                Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 44, color: Colors.grey[700]),
+                if (_isImage(f['ext']))
+                  SizedBox(
+                    width: 48,
+                    height: 44,
+                    child: ThumbnailImage(path: (f['path'] ?? '').toString()),
+                  )
+                else
+                  Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 44, color: Colors.grey[700]),
                 if (isSel)
                   const Positioned(
                     right: 0,
@@ -703,6 +715,22 @@ class _LibraryPageState extends State<LibraryPage> {
     if (_selected.isEmpty) _selecting = false;
   }
 
+  bool _isImage(String? ext) {
+    switch ((ext ?? '').toLowerCase()) {
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'gif':
+      case 'webp':
+      case 'bmp':
+      case 'tiff':
+      case 'ico':
+        return true;
+      default:
+        return false;
+    }
+  }
+
   Color? _colorOf(dynamic color) {
     if (color == null || color.toString().isEmpty) return null;
     try {
@@ -799,5 +827,78 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
         ),
       ],
     );
+  }
+}
+
+/// 图片缩略图：原生解码缩放后异步显示（加载中/失败显示占位）
+class ThumbnailImage extends StatefulWidget {
+  final String path;
+  final double maxSize;
+  const ThumbnailImage({super.key, required this.path, this.maxSize = 256});
+
+  @override
+  State<ThumbnailImage> createState() => _ThumbnailImageState();
+}
+
+class _ThumbnailImageState extends State<ThumbnailImage> {
+  ui.Image? _image;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (widget.path.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+    final j = MediaNative().makeThumbnailJson(widget.path, widget.maxSize.round());
+    if (!mounted) return;
+    if (j == null || (j['error'] as String? ?? '').isNotEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+    try {
+      final bytes = base64Decode(j['base64'] as String? ?? '');
+      final w = (j['width'] as int?) ?? 0;
+      final h = (j['height'] as int?) ?? 0;
+      if (bytes.isEmpty || w <= 0 || h <= 0) {
+        setState(() => _loading = false);
+        return;
+      }
+      final completer = Completer<ui.Image>();
+      ui.decodeImageFromPixels(bytes, w, h, ui.PixelFormat.rgba8888, completer.complete);
+      final img = await completer.future;
+      if (!mounted) {
+        img.dispose();
+        return;
+      }
+      setState(() {
+        _image = img;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _image?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)));
+    }
+    if (_image == null) {
+      return Center(child: Icon(Icons.broken_image_outlined, color: Colors.grey[600], size: 28));
+    }
+    return RawImage(image: _image, fit: BoxFit.cover);
   }
 }

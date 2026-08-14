@@ -40,6 +40,10 @@ char *media_decode_image_file(const char *path);
 MEDIA_API
 char *media_decode_image_buffer(const unsigned char *data, int len);
 
+// 生成图片缩略图（盒式采样缩放到 max_size 内）。返回 JSON：{"error":"","base64":"...","width":n,"height":n}
+MEDIA_API
+char *media_make_thumbnail(const char *path, int max_size);
+
 // ============================================================
 // 电子书 EPUB（miniz）
 // ============================================================
