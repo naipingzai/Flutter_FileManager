@@ -3,23 +3,23 @@ build/
 *.iml
 .idea/
 
-# 第三方依赖（由 fetch_thirdparty.cmake 在 CMake 配置阶段自动下载到 build/_thirdparty/）
-# 不提交到 git，避免：
-#   1. 仓库过大（FFmpeg 源码约 80MB，编译产物约 800MB）
-#   2. 跨平台 ABI 不兼容（Linux .a 无法在 Windows/macOS/iOS/Android 链接）
-#   3. 频繁更新引入 git 冲突
-
-# FetchContent 下载目录（CMake 自动管理）
+# ============================================================
+# 第三方依赖（由 fetch_thirdparty.cmake / fetch_ffmpeg.cmake 在
+# CMake 配置阶段自动下载到 ${CMAKE_BINARY_DIR}/_thirdparty_build/）
+#
+# 遵循 skill 规范：APP 不编译第三方库源码，只消费
+# Flutter_CrossPlatformDependency 仓库 Release 发布的静态库产物。
+# 不提交到 git，避免仓库过大、跨平台 ABI 不兼容。
+# ============================================================
+build/_thirdparty_build/
 build/_thirdparty/
-build/_ffmpeg_build_*/
-build/_miniz.tar.gz
-build/_stb.tar.gz
-build/_ffmpeg.tar.xz
 
-# Linux FFmpeg 编译产物（已移到 build/_ffmpeg_build_linux/）
+# 第三方源码/归档临时文件
+*.tar.xz
+*.tar.gz
+
+# 构建中间产物
 *.a
 *.o
+*.obj
 *.d
-
-# native 旧 build artifacts（已被新流程替代，保留规则防止误提交）
-native/text_ops/out/

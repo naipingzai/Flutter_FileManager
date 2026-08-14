@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'native/core_bindings.dart';
+import 'native/system_ffi.dart';
 import 'screens/file_manager_page.dart';
 
 const _permissionChannel = MethodChannel(
@@ -71,7 +71,8 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
   }
 
   Future<bool> _isManageExternalStorageGranted() async {
-    if (!Platform.isAndroid) return true;
+    // 通过 C++ 获取平台信息，Dart 不做 Platform.isXxx 判断。
+    if (SystemNative().osName != 'android') return true;
     try {
       return await _permissionChannel.invokeMethod<bool>(
             'isManageExternalStorageGranted',
@@ -84,7 +85,8 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
   }
 
   Future<void> _openAllFilesAccessSettings() async {
-    if (!Platform.isAndroid) return;
+    // 通过 C++ 获取平台信息，Dart 不做 Platform.isXxx 判断。
+    if (SystemNative().osName != 'android') return;
     try {
       await _permissionChannel.invokeMethod('openAllFilesAccessSettings');
     } catch (e) {
@@ -94,7 +96,8 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
   }
 
   Future<void> _checkAndRequestPermissions() async {
-    if (!Platform.isAndroid) {
+    // 通过 C++ 获取平台信息，Dart 不做 Platform.isXxx 判断。
+    if (SystemNative().osName != 'android') {
       setState(() {
         _granted = true;
         _checking = false;

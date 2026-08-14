@@ -1,11 +1,11 @@
 // ignore_for_file: non_constant_identifier_names
 import 'dart:convert';
 import 'dart:ffi';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import '../native/core_bindings.dart';
 import '../native/media_ffi.dart';
+import '../native/system_ffi.dart';
 
 /// File viewer type for UI routing
 enum FileViewerType {
@@ -284,12 +284,11 @@ class FileService {
   // ---------- directory & file queries ----------
 
   Future<String> getHomeDirectory() async {
-    if (Platform.isAndroid) return '/storage/emulated/0';
-    final j = jsonDecode(_callJson(_n.getHomeDir));
-    return j['path'] ?? '/';
+    // 统一通过 system 模块从 C++ 获取，Dart 不做平台判断。
+    return SystemNative().homeDirectory;
   }
 
-  String getRootDirectory() => '/';
+  String getRootDirectory() => SystemNative().rootDirectory;
 
   List<FileEntry> listDirectory(String path, {bool showHidden = false}) {
     final pp = path.toNativeUtf8();

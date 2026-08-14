@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter_file_manager/native/system_ffi.dart';
 import 'package:flutter_file_manager/screens/viewer/audio_player_page.dart';
 import 'package:flutter_file_manager/screens/viewer/csv_viewer_page.dart';
 import 'package:flutter_file_manager/screens/viewer/ebook_viewer_page.dart';
@@ -321,57 +321,76 @@ class _FileManagerView extends StatelessWidget {
               ),
             ),
           ),
-          _quickAccessItem(
-            context,
-            state,
-            Icons.home,
-            '主目录',
-            _platformHomeDir(),
+          FutureBuilder<Map<String, dynamic>>(
+            future: Future(() => SystemNative().info),
+            builder: (ctx, snap) {
+              if (!snap.hasData || snap.data == null) {
+                return const SizedBox();
+              }
+              final info = snap.data!;
+              final home = info['user_home'] as String? ?? '/';
+              final root = info['root_dir'] as String? ?? '/';
+              final downloads = info['downloads_dir'] as String? ?? '';
+              final documents = info['documents_dir'] as String? ?? '';
+              final pictures = info['pictures_dir'] as String? ?? '';
+              final music = info['music_dir'] as String? ?? '';
+              final videos = info['videos_dir'] as String? ?? '';
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _quickAccessItem(context, state, Icons.home, '主目录', home),
+                  _quickAccessItem(
+                    context,
+                    state,
+                    Icons.folder,
+                    '根目录',
+                    root,
+                  ),
+                  if (downloads.isNotEmpty)
+                    _quickAccessItem(
+                      context,
+                      state,
+                      Icons.download,
+                      '下载',
+                      downloads,
+                    ),
+                  if (documents.isNotEmpty)
+                    _quickAccessItem(
+                      context,
+                      state,
+                      Icons.description,
+                      '文档',
+                      documents,
+                    ),
+                  if (pictures.isNotEmpty)
+                    _quickAccessItem(
+                      context,
+                      state,
+                      Icons.image,
+                      '图片',
+                      pictures,
+                    ),
+                  if (music.isNotEmpty)
+                    _quickAccessItem(
+                      context,
+                      state,
+                      Icons.music_note,
+                      '音乐',
+                      music,
+                    ),
+                  if (videos.isNotEmpty)
+                    _quickAccessItem(
+                      context,
+                      state,
+                      Icons.movie,
+                      '视频',
+                      videos,
+                    ),
+                ],
+              );
+            },
           ),
-          _quickAccessItem(
-            context,
-            state,
-            Icons.folder,
-            '根目录',
-            _platformRootDir(),
-          ),
-          if (_platformIsLinux()) ...[
-            _quickAccessItem(
-              context,
-              state,
-              Icons.download,
-              '下载',
-              '${_platformHomeDir()}/Downloads',
-            ),
-            _quickAccessItem(
-              context,
-              state,
-              Icons.description,
-              '文档',
-              '${_platformHomeDir()}/Documents',
-            ),
-            _quickAccessItem(
-              context,
-              state,
-              Icons.image,
-              '图片',
-              '${_platformHomeDir()}/Pictures',
-            ),
-            _quickAccessItem(
-              context,
-              state,
-              Icons.music_note,
-              '音乐',
-              '${_platformHomeDir()}/Music',
-            ),
-            _quickAccessItem(
-              context,
-              state,
-              Icons.movie,
-              '视频',
-              '${_platformHomeDir()}/Videos',
-            ),
-          ],
           const Divider(),
           // Bookmarks
           Padding(
@@ -998,22 +1017,6 @@ class _FileManagerView extends StatelessWidget {
       ),
     );
   }
-
-  String _platformHomeDir() {
-    if (Platform.isLinux) return '/home';
-    if (Platform.isAndroid) return '/storage/emulated/0';
-    if (Platform.isIOS) return '.'; // iOS sandbox
-    return '/';
-  }
-
-  String _platformRootDir() {
-    if (Platform.isLinux) return '/';
-    if (Platform.isAndroid) return '/';
-    if (Platform.isIOS) return '.'; // iOS sandbox
-    return '/';
-  }
-
-  bool _platformIsLinux() => Platform.isLinux;
 
   void _deleteSelected(BuildContext context, FileManagerState state) {
     final selected = state.currentTab.entries

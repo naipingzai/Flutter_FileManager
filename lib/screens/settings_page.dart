@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../native/system_ffi.dart';
 import '../providers/file_manager_state.dart';
 import '../services/file_service.dart';
 
@@ -62,7 +62,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _infoItem(
             context,
             '当前平台',
-            Platform.operatingSystem,
+            SystemNative().osName,
             Icons.phone_android,
           ),
           _infoItem(context, '版本', '1.0.0', Icons.info_outline),

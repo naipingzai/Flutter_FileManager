@@ -19,7 +19,7 @@ env:
 jobs:
   # ============================================================
   # Linux —— 编译 x86_64 release 二进制
-  # FFmpeg：系统预编译包（apt libav*-dev），不本地编译源码
+  # FFmpeg：由 CMake fetch_ffmpeg.cmake 自动下载依赖仓库 Release 产物
   # ============================================================
   linux:
     name: Linux (binary)
@@ -41,8 +41,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake g++ ninja-build pkg-config make tar curl \
-            libgtk-3-dev \
-            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev
+            libgtk-3-dev
 
       - name: Flutter pub get
         run: flutter pub get
@@ -67,7 +66,7 @@ jobs:
 
   # ============================================================
   # Android —— 编译 fat APK
-  # FFmpeg：下载预编译各 ABI 静态库 -> FFMPEG_DIR (lib/<abi>/libav*.a)
+  # FFmpeg：CMake fetch_ffmpeg.cmake 自动下载依赖仓库各 ABI 静态库
   # ============================================================
   android:
     name: Android (APK)
@@ -92,20 +91,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Download prebuilt FFmpeg (Android)
-        run: |
-          mkdir -p ${{ runner.temp }}/ffmpeg/android/lib
-          # TODO: 从预编译 FFmpeg 发布源下载各 ABI 静态库并解压到:
-          #   ${{ runner.temp }}/ffmpeg/android/lib/<abi>/libav*.a
-          echo "::error::Android 预编译 FFmpeg 尚未配置下载源，请补充"
-          exit 1
+      # FFmpeg 由 CMake 的 cpp/cmake/fetch_ffmpeg.cmake 在配置阶段
+      # 自动从 Flutter_CrossPlatformDependency 仓库 Release 下载。
+      # 如已提前准备好本地产物，可设置 FFMPEG_DIR 覆盖。
 
       - name: Flutter pub get
         run: flutter pub get
 
       - name: Build APK (fat)
-        env:
-          FFMPEG_DIR: ${{ runner.temp }}/ffmpeg/android
         run: flutter build apk --release
 
       - name: Upload APK
@@ -117,7 +110,7 @@ jobs:
 
   # ============================================================
   # Windows —— 编译 x64 EXE
-  # FFmpeg：下载预编译 MSVC 库 -> FFMPEG_DIR (lib/av*.lib)
+  # FFmpeg：CMake fetch_ffmpeg.cmake 自动下载依赖仓库 MSVC 兼容库
   # ============================================================
   windows:
     name: Windows (EXE)
@@ -140,18 +133,13 @@ jobs:
       - name: Download prebuilt FFmpeg (Windows MSVC)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\ffmpeg" | Out-Null
-          # TODO: 从预编译 FFmpeg(MSVC) 发布源下载并解压到 ${{ runner.temp }}\ffmpeg
-          #   需含 include/ 与 lib/avformat.lib, lib/avcodec.lib 等
-          Write-Error "Windows 预编译 FFmpeg 尚未配置下载源，请补充"
-          exit 1
+          # FFmpeg 由 CMake 的 fetch_ffmpeg.cmake 自动下载（依赖仓库 Release）
+          Write-Host "FFmpeg 由 CMake fetch_ffmpeg.cmake 自动获取"
 
       - name: Flutter pub get
         run: flutter pub get
 
       - name: Build Windows release
-        env:
-          FFMPEG_DIR: ${{ runner.temp }}\ffmpeg
         run: flutter build windows --release
 
       - name: Upload Windows artifact
@@ -194,14 +182,7 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Download prebuilt FFmpeg (iOS)
-        run: |
-          mkdir -p build/native/ios/ffmpeg/lib build/native/ios/ffmpeg/include
-          # TODO: 从预编译 iOS FFmpeg 发布源下载并解压到 build/native/ios/ffmpeg
-          #   需含 include/ 与 lib/libavformat.a, lib/libavcodec.a 等
-          echo "::error::iOS 预编译 FFmpeg 尚未配置下载源，请补充"
-          exit 1
-
+      # FFmpeg 由 CMake fetch_ffmpeg.cmake 自动下载 iOS 产物（依赖仓库 Release）
       - name: Build iOS (release, 不签名)
         run: flutter build ios --release --no-codesign
 
