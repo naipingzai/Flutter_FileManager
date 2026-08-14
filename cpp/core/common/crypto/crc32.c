@@ -2,7 +2,7 @@
  * crc32.c - CRC32 (IEEE 802.3) 实现
  */
 
-#include "common/crypto.h"
+#include "core/common/crypto.h"
 
 uint32_t common_crc32_update(uint32_t crc, const unsigned char *data, size_t len) {
     static uint32_t table[256];

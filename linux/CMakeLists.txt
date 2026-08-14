@@ -64,9 +64,7 @@ add_subdirectory("${NATIVE_ROOT}" "${CMAKE_BINARY_DIR}/cpp")
 add_subdirectory("runner")
 
 # Ensure native static libraries are built before the runner
-foreach(mod common system file text media)
-    add_dependencies(${BINARY_NAME} ${mod})
-endforeach()
+add_dependencies(${BINARY_NAME} native)
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

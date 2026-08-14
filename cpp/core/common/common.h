@@ -10,7 +10,7 @@
  *   - DiskUsageInfo: 磁盘用量
  *   - StandardDir: 标准目录枚举
  *
- * 任何业务模块都可以 #include "common/common.h"。
+ * 任何业务模块都可以 #include "core/common/common.h"。
  */
 
 #ifndef COMMON_COMMON_H

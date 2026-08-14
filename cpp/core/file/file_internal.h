@@ -9,8 +9,8 @@
 #ifndef FILE_FS_INTERNAL_H
 #define FILE_FS_INTERNAL_H
 
-#include "file/file.h"
-#include "common/common.h"
+#include "core/file/file.h"
+#include "core/common/common.h"
 
 #ifdef __cplusplus
 extern "C" {

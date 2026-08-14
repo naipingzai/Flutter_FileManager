@@ -24,17 +24,13 @@ target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 
 # ============================================================
-# 链接 C++ 静态库（common → system → file → text → media）
+# 链接 C++ 静态库（单一 libnative.a，含全部符号）
 # 使用 --whole-archive 强制包含所有符号，--export-dynamic 导出符号
 # 供 Dart FFI 通过 DynamicLibrary.process() 查找
 # ============================================================
 target_link_libraries(${BINARY_NAME} PRIVATE
     -Wl,--whole-archive
-    common
-    system
-    file
-    text
-    media
+    native
     -Wl,--no-whole-archive
 )
 

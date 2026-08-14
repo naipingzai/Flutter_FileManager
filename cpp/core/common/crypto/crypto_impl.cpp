@@ -5,7 +5,7 @@
  * 本文件提供面向 C/C++ 的 extern "C" 统一 API。
  */
 
-#include "common/crypto.h"
+#include "core/common/crypto.h"
 #include "crypto_internal.h"
 
 #include <string.h>

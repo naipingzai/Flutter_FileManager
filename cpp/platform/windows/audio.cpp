@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "media/media.h"
+#include "core/media/media.h"
 
 typedef struct {
     IAudioClient* client;

@@ -3,16 +3,16 @@
  * Core file system operations using POSIX APIs
  */
 
-#include "file/file.h"
+#include "core/file/file.h"
 #include "file_internal.h"
-#include "system/system.h"
+#include "core/system/system.h"
 
 // ============================================================
 // 平台层：Windows 下引入 POSIX 兼容层，其他平台使用系统 POSIX。
 // 平台源文件由 platform/<platform>/ 下的 CMake 配置引入。
 // ============================================================
 #ifdef _WIN32
-#include "platform/windows.cpp"
+#include "platform/windows/file.cpp"
 #else
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -36,7 +36,7 @@
 #include <string.h>
 // 内置哈希/加密实现（MD5/SHA1/SHA256/SHA512/CRC32/AES-256-CBC），
 // 替代 OpenSSL 与 zlib，实现全平台无外部依赖
-#include "common/crypto.h"
+#include "core/common/crypto.h"
 #include <string>
 #include <vector>
 #include <map>

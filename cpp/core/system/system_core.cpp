@@ -7,9 +7,9 @@
  * 平台差异由 platform/<os>/ 子目录下的 source 实现。
  */
 
-#include "system/system.h"
-#include "system_internal.h"
-#include "common/json_builder.h"
+#include "core/system/system.h"
+#include "platform/system.h"
+#include "core/common/json_builder.h"
 
 #include <stdio.h>
 #include <stdlib.h>

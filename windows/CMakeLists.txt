@@ -59,9 +59,7 @@ add_subdirectory("${NATIVE_ROOT}" "${CMAKE_BINARY_DIR}/cpp")
 add_subdirectory("runner")
 
 # Ensure native static libraries are built before the runner
-foreach(mod common system file text media)
-    add_dependencies(${BINARY_NAME} ${mod})
-endforeach()
+add_dependencies(${BINARY_NAME} native)
 
 
 # Generated plugin build rules, which manage building the plugins and adding

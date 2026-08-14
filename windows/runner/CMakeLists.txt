@@ -37,16 +37,12 @@ target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # ============================================================
-# 链接 C++ 模块静态库（common → system → file → text → media）
+# 链接 C++ 静态库（单一 native.lib，含全部符号）
 # 静态库无引用符号，需 whole-archive 强制包含全部目标文件
 # ============================================================
 if(MSVC)
   target_link_libraries(${BINARY_NAME} PRIVATE
-    "/WHOLEARCHIVE:system.lib"
-    "/WHOLEARCHIVE:file.lib"
-    "/WHOLEARCHIVE:text.lib"
-    "/WHOLEARCHIVE:media.lib"
-    "common.lib"
+    "/WHOLEARCHIVE:native.lib"
   )
   # 导出各模块的 FFI 符号
   target_link_options(${BINARY_NAME} PRIVATE
@@ -56,11 +52,7 @@ else()
   # MinGW 工具链
   target_link_libraries(${BINARY_NAME} PRIVATE
     -Wl,--whole-archive
-    system
-    file
-    text
-    media
-    common
+    native
     -Wl,--no-whole-archive
   )
   target_link_options(${BINARY_NAME} PRIVATE -Wl,--export-all-symbols)

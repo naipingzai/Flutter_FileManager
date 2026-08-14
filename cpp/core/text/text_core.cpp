@@ -8,7 +8,7 @@
  *   - 句柄式 API（void* 句柄由 Dart 管理）
  */
 
-#include "text/text.h"
+#include "core/text/text.h"
 
 #include <stdio.h>
 #include <stdlib.h>

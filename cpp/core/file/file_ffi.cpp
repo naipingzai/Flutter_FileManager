@@ -7,9 +7,9 @@
  * 对 Dart 暴露的 API 前缀：file_*
  */
 
-#include "file/file.h"
+#include "core/file/file.h"
 #include "file_internal.h"
-#include "common/json_builder.h"
+#include "core/common/json_builder.h"
 
 #include <stdio.h>
 #include <stdlib.h>

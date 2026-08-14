@@ -10,8 +10,8 @@
  *   - 音频输出：platform/<os>/ 提供 ALSA/AAudio/AudioQueue/WASAPI
  */
 
-#include "media/media.h"
-#include "common/json_builder.h"
+#include "core/media/media.h"
+#include "core/common/json_builder.h"
 
 #include <stdio.h>
 #include <stdlib.h>

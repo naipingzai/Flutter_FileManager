@@ -62,13 +62,11 @@ cmake --build "${BUILD_DIR}" --config Release --parallel
 OUT_A="${BUILD_DIR}/libflutter_native.a"
 rm -f "${OUT_A}"
 
-# 模块静态库统一输出到 ${BUILD_DIR}/cpp/（见 cpp/CMakeLists.txt）
+# 模块静态库统一输出到 ${BUILD_DIR}/lib/（见 cpp/CMakeLists.txt，单一 libnative.a）
 MODULE_LIBS=""
-for lib in "${BUILD_DIR}/cpp"/libcommon.a "${BUILD_DIR}/cpp"/libsystem.a \
-           "${BUILD_DIR}/cpp"/libfile.a "${BUILD_DIR}/cpp"/libtext.a \
-           "${BUILD_DIR}/cpp"/libmedia.a; do
-    if [[ -f "${lib}" ]]; then MODULE_LIBS+="${lib} "; fi
-done
+if [[ -f "${BUILD_DIR}/lib/libnative.a" ]]; then
+    MODULE_LIBS="${BUILD_DIR}/lib/libnative.a"
+fi
 
 # 第三方预编译静态库：${TP_DIR}/lib
 TP_LIBS=""

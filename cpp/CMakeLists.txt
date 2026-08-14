@@ -2,16 +2,24 @@
 # native - 跨平台原生层统一构建入口（单一 CMake 配置）
 # ============================================================
 #
-# 架构（按功能分目录，平台代码在 <模块>/platform/ 下）：
-#   common/   公共基础层（Result、JsonBuilder、Crypto）
-#   system/   平台信息（OS、Arch、路径、目录）       + platform/{posix,windows}.cpp
-#   file/     文件系统操作                          + platform/windows.cpp
-#   text/     大文本文件读取
-#   media/    媒体解码（图片/电子书/视频/音频）        + platform/{alsa,wasapi,aaudio,audio_queue}.cpp
+# 架构（core + platform 两层）：
+#   core/       统一核心层，对接 Dart（FFI 入口 + 各功能跨平台业务逻辑）
+#     common/   公共基础（Result、JsonBuilder、Crypto）
+#     system/   平台信息（OS、Arch、路径、目录）
+#     file/     文件系统操作
+#     text/     大文本文件读取
+#     media/    媒体解码 + 音频输出接口
+#   platform/   跨平台实现（按 OS 目录）
+#     posix/    system.cpp   （Linux/macOS/iOS/Android 目录解析）
+#     windows/  system.cpp file.cpp audio.cpp
+#     linux/    audio.cpp    （ALSA）
+#     apple/    audio.cpp    （macOS/iOS AudioQueue）
+#     android/  audio.cpp    （AAudio）
+#     system.h               （system 平台接口，core 调用、platform 实现）
 #
-# 调用关系：Dart FFI → 模块 ffi → 模块 core → <模块>/platform/ 平台实现
+# 调用关系：Dart → core（FFI）→ core 业务 → platform 实现
+# 编译为一个静态库 libnative.a（含全部符号），Dart 链接单一产物。
 #
-# 平台差异只在 <模块>/platform/ 源文件，由本文件按 if(WIN32)/if(APPLE) 选择。
 # 第三方库一律消费预编译产物（THIRDPARTY_DIR），不下载、不本地编译源码。
 # ============================================================
 
@@ -22,10 +30,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# 所有模块静态库统一输出到 ${CMAKE_BINARY_DIR}/cpp，便于集成方与脚本定位
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/cpp")
+# 单一静态库输出目录
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
-# 原生源码根目录（所有模块公共 include 根，统一 #include "media/media.h" 等）
+# 原生源码根目录（公共 include 根，统一 #include "core/media/media.h" 等）
 set(CPP_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 # 全局编译选项
@@ -41,89 +49,70 @@ else()
 endif()
 
 # ============================================================
-# common - 公共基础层
+# 源码清单
 # ============================================================
-add_library(common STATIC
-    common/json/json_builder.c
-    common/crypto/crc32.c
-    common/crypto/md5.c
-    common/crypto/crypto_impl.cpp
+set(NATIVE_SOURCES
+    # core - 公共基础
+    core/common/json/json_builder.c
+    core/common/crypto/crc32.c
+    core/common/crypto/md5.c
+    core/common/crypto/crypto_impl.cpp
+    # core - 功能
+    core/system/system_core.cpp
+    core/file/file_core.cpp
+    core/file/file_ffi.cpp
+    core/text/text_core.cpp
+    core/media/media_core.cpp
 )
-target_include_directories(common PUBLIC ${CPP_ROOT})
-if(MSVC)
-    target_compile_options(common PUBLIC /W3 /utf-8)
-endif()
 
-# ============================================================
-# system - 平台信息
-# ============================================================
-set(SYSTEM_SOURCES system/system_core.cpp)
+# platform - 按 OS 选择实现
 if(WIN32)
-    list(APPEND SYSTEM_SOURCES system/platform/windows.cpp)
-else()
-    list(APPEND SYSTEM_SOURCES system/platform/posix.cpp)
-endif()
-add_library(system STATIC ${SYSTEM_SOURCES})
-target_include_directories(system PUBLIC ${CPP_ROOT})
-target_link_libraries(system PUBLIC common)
-if(WIN32)
-    target_link_libraries(system PUBLIC shell32 ole32)
-endif()
-
-# ============================================================
-# file - 文件系统操作
-# ============================================================
-set(FILE_SOURCES file/file_core.cpp file/file_ffi.cpp)
-if(WIN32)
-    list(APPEND FILE_SOURCES file/platform/windows.cpp)
-endif()
-add_library(file STATIC ${FILE_SOURCES})
-target_include_directories(file PUBLIC ${CPP_ROOT})
-target_link_libraries(file PUBLIC common system)
-
-# ============================================================
-# text - 大文本文件读取
-# ============================================================
-add_library(text STATIC text/text_core.cpp)
-target_include_directories(text PUBLIC ${CPP_ROOT})
-target_link_libraries(text PUBLIC common)
-
-# ============================================================
-# media - 媒体解码 + 音频输出
-# ============================================================
-set(MEDIA_SOURCES media/media_core.cpp)
-if(WIN32)
-    list(APPEND MEDIA_SOURCES media/platform/wasapi.cpp)
+    list(APPEND NATIVE_SOURCES
+        platform/windows/system.cpp
+        platform/windows/file.cpp
+        platform/windows/audio.cpp
+    )
 elseif(ANDROID)
-    list(APPEND MEDIA_SOURCES media/platform/aaudio.cpp)
+    list(APPEND NATIVE_SOURCES
+        platform/posix/system.cpp
+        platform/android/audio.cpp
+    )
 elseif(APPLE)
-    list(APPEND MEDIA_SOURCES media/platform/audio_queue.cpp)
+    list(APPEND NATIVE_SOURCES
+        platform/posix/system.cpp
+        platform/apple/audio.cpp
+    )
 else()
-    list(APPEND MEDIA_SOURCES media/platform/alsa.cpp)
+    list(APPEND NATIVE_SOURCES
+        platform/posix/system.cpp
+        platform/linux/audio.cpp
+    )
 endif()
-add_library(media STATIC ${MEDIA_SOURCES})
-target_include_directories(media PUBLIC ${CPP_ROOT})
-target_link_libraries(media PUBLIC common)
 
-# 平台系统库（音频输出等）
+# ============================================================
+# 单一静态库
+# ============================================================
+add_library(native STATIC ${NATIVE_SOURCES})
+target_include_directories(native PUBLIC ${CPP_ROOT})
+
+# 平台系统库
 if(WIN32)
-    target_link_libraries(media PUBLIC ole32)
+    target_link_libraries(native PUBLIC ole32 shell32)
 elseif(ANDROID)
-    target_link_libraries(media PUBLIC log aaudio)
+    target_link_libraries(native PUBLIC log aaudio)
 elseif(APPLE)
-    target_link_libraries(media PUBLIC
+    target_link_libraries(native PUBLIC
         "-framework AudioToolbox"
         "-framework CoreFoundation"
     )
 else()
-    target_link_libraries(media PUBLIC asound)
+    target_link_libraries(native PUBLIC asound)
 endif()
 
-# ---- 第三方预编译库（FFmpeg + miniz + stb_image）----
-# 全部由外部提供，通过 THIRDPARTY_DIR（或 FFMPEG_DIR）传入：
-#   <dir>/include/  含 libavformat/... 头文件 + miniz.h + stb_image.h
-#   <dir>/lib/      含 libav*.a + libminiz.a + libstb_image.a
-# 需求清单见仓库根目录 REQUIREMENTS.md
+# ============================================================
+# 第三方预编译库（FFmpeg + miniz + stb_image）
+# 通过 THIRDPARTY_DIR（或 FFMPEG_DIR）传入，见 REQUIREMENTS.md
+# ============================================================
 set(_tp_root "")
 if(DEFINED THIRDPARTY_DIR)
     set(_tp_root "${THIRDPARTY_DIR}")
@@ -135,18 +124,13 @@ elseif(DEFINED ENV{FFMPEG_DIR})
     set(_tp_root "$ENV{FFMPEG_DIR}")
 endif()
 
-set(THIRDPARTY_AVAILABLE FALSE)
 if(_tp_root AND EXISTS "${_tp_root}/include" AND EXISTS "${_tp_root}/lib")
-    set(THIRDPARTY_AVAILABLE TRUE)
-endif()
-
-if(THIRDPARTY_AVAILABLE)
-    target_include_directories(media PRIVATE "${_tp_root}/include")
+    target_include_directories(native PRIVATE "${_tp_root}/include")
     if(WIN32)
-        target_link_directories(media PRIVATE "${_tp_root}/lib")
-        target_link_libraries(media PUBLIC avformat avcodec avutil swscale swresample miniz stb_image)
+        target_link_directories(native PRIVATE "${_tp_root}/lib")
+        target_link_libraries(native PUBLIC avformat avcodec avutil swscale swresample miniz stb_image)
     else()
-        target_link_libraries(media PUBLIC
+        target_link_libraries(native PUBLIC
             "${_tp_root}/lib/libavformat.a"
             "${_tp_root}/lib/libavcodec.a"
             "${_tp_root}/lib/libavutil.a"
@@ -156,7 +140,7 @@ if(THIRDPARTY_AVAILABLE)
             "${_tp_root}/lib/libstb_image.a"
         )
     endif()
-    target_compile_definitions(media PUBLIC HAVE_FFMPEG=1)
+    target_compile_definitions(native PUBLIC HAVE_FFMPEG=1)
     message(STATUS "[native] 第三方预编译库启用: ${_tp_root}")
 else()
     message(WARNING

@@ -2,7 +2,7 @@
  * json_builder.c - 统一 JSON 字符串构建器实现
  */
 
-#include "common/json_builder.h"
+#include "core/common/json_builder.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

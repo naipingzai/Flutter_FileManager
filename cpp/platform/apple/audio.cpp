@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "media/media.h"
+#include "core/media/media.h"
 
 #define AQ_BUFFER_COUNT 8
 #define AQ_BUFFER_SIZE 65536
