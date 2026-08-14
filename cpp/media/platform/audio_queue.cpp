@@ -35,13 +35,13 @@ static void aq_buffer_done(void* user_data, AudioQueueRef queue, AudioQueueBuffe
 
 extern "C" void* media_audio_output_open(int sample_rate, int channels, int bits) {
     (void)bits;
-    if (sample_rate <= 0 || channels <= 0 || channels > 8) return NULL;
+    if (sample_rate <= 0 || channels <= 0 || channels > 8) return nullptr;
     AQOutput* a = (AQOutput*)calloc(1, sizeof(AQOutput));
-    if (!a) return NULL;
+    if (!a) return nullptr;
     a->channels = channels;
     a->sample_rate = sample_rate;
     a->free_sem = dispatch_semaphore_create(AQ_BUFFER_COUNT);
-    if (!a->free_sem) { free(a); return NULL; }
+    if (!a->free_sem) { free(a); return nullptr; }
 
     AudioStreamBasicDescription fmt;
     memset(&fmt, 0, sizeof(fmt));
@@ -54,21 +54,21 @@ extern "C" void* media_audio_output_open(int sample_rate, int channels, int bits
     fmt.mBytesPerFrame = channels * 2;
     fmt.mBytesPerPacket = channels * 2;
 
-    OSStatus st = AudioQueueNewOutput(&fmt, aq_buffer_done, a, NULL, NULL, 0, &a->queue);
+    OSStatus st = AudioQueueNewOutput(&fmt, aq_buffer_done, a, nullptr, nullptr, 0, &a->queue);
     if (st != noErr) {
         dispatch_release(a->free_sem);
         free(a);
-        return NULL;
+        return nullptr;
     }
     for (int i = 0; i < AQ_BUFFER_COUNT; i++) {
         if (AudioQueueAllocateBuffer(a->queue, AQ_BUFFER_SIZE, &a->buffers[i]) != noErr) {
             AudioQueueDispose(a->queue, true);
             dispatch_release(a->free_sem);
             free(a);
-            return NULL;
+            return nullptr;
         }
     }
-    AudioQueueStart(a->queue, NULL);
+    AudioQueueStart(a->queue, nullptr);
     a->started = 1;
     return a;
 }
@@ -77,7 +77,7 @@ extern "C" int media_audio_output_write(void* handle, const unsigned char* pcm, 
     AQOutput* a = (AQOutput*)handle;
     if (!a || !a->queue || len <= 0) return -1;
     if (!a->started) {
-        AudioQueueStart(a->queue, NULL);
+        AudioQueueStart(a->queue, nullptr);
         a->started = 1;
     }
     int total = 0;
@@ -88,7 +88,7 @@ extern "C" int media_audio_output_write(void* handle, const unsigned char* pcm, 
         size_t chunk = (size_t)len > AQ_BUFFER_SIZE ? AQ_BUFFER_SIZE : (size_t)len;
         memcpy(buf->mAudioData, pcm + total, chunk);
         buf->mAudioDataByteSize = (UInt32)chunk;
-        if (AudioQueueEnqueueBuffer(a->queue, buf, 0, NULL) != noErr) {
+        if (AudioQueueEnqueueBuffer(a->queue, buf, 0, nullptr) != noErr) {
             dispatch_semaphore_signal(a->free_sem);
             return -1;
         }

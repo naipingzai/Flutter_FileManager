@@ -199,7 +199,7 @@ static void fill_file_info(FileInfo *info, const char *path, const char *name,
 // ============================================================
 extern "C" DirListResult* file_ops_list_directory(const char *path, bool show_hidden) {
     DirListResult *result = (DirListResult*)calloc(1, sizeof(DirListResult));
-    if (!result) return NULL;
+    if (!result) return nullptr;
 
     DIR *dir = opendir(path);
     if (!dir) {
@@ -216,7 +216,7 @@ extern "C" DirListResult* file_ops_list_directory(const char *path, bool show_hi
     }
 
     struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
+    while ((entry = readdir(dir)) != nullptr) {
         // Skip . and ..
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
@@ -283,12 +283,12 @@ extern "C" void file_ops_free_dir_list(DirListResult *result) {
 // ============================================================
 extern "C" FileInfo* file_ops_get_file_info(const char *path) {
     FileInfo *info = (FileInfo*)calloc(1, sizeof(FileInfo));
-    if (!info) return NULL;
+    if (!info) return nullptr;
 
     struct stat st;
     if (lstat(path, &st) != 0) {
         free(info);
-        return NULL;
+        return nullptr;
     }
 
     bool is_symlink = false;
@@ -356,7 +356,7 @@ static int remove_directory_recursive(const char *path) {
     struct dirent *entry;
     int ret = 0;
 
-    while ((entry = readdir(dir)) != NULL) {
+    while ((entry = readdir(dir)) != nullptr) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
 
@@ -579,14 +579,14 @@ static char g_realpath_buffer[1024];
 extern "C" const char* file_ops_realpath(const char *path) {
     char *result = realpath(path, g_realpath_buffer);
     if (result) return g_realpath_buffer;
-    return NULL;
+    return nullptr;
 }
 
 // Function: readlink() - enhanced from Syscall.kt:212
 static char g_readlink_buffer[1024];
 extern "C" const char* file_ops_readlink(const char *path) {
     ssize_t len = readlink(path, g_readlink_buffer, sizeof(g_readlink_buffer) - 1);
-    if (len < 0) return NULL;
+    if (len < 0) return nullptr;
     g_readlink_buffer[len] = '\0';
     return g_readlink_buffer;
 }
@@ -600,7 +600,7 @@ static void search_recursive(const char *dir, const char *pattern, int max_resul
     if (!d) return;
 
     struct dirent *entry;
-    while ((entry = readdir(d)) != NULL && result->count < max_results) {
+    while ((entry = readdir(d)) != nullptr && result->count < max_results) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
 
@@ -640,7 +640,7 @@ static void search_recursive(const char *dir, const char *pattern, int max_resul
 extern "C" SearchResultList* file_ops_search_files(const char *dir, const char *pattern,
                                                    int max_results) {
     SearchResultList *result = (SearchResultList*)calloc(1, sizeof(SearchResultList));
-    if (!result) return NULL;
+    if (!result) return nullptr;
     result->capacity = 256;
     result->items = (SearchResult*)calloc(result->capacity, sizeof(SearchResult));
     if (!result->items) {
@@ -663,13 +663,13 @@ extern "C" void file_ops_free_search_results(SearchResultList *result) {
 // ============================================================
 static void hash_to_hex(const unsigned char *hash, int len, char *out) {
     for (int i = 0; i < len; i++) {
-        sprintf(out + i * 2, "%02x", hash[i]);
+        snprintf(out + i * 2, 3, "%02x", hash[i]);
     }
 }
 
 extern "C" HashResult* file_ops_compute_hash(const char *path) {
     HashResult *result = (HashResult*)calloc(1, sizeof(HashResult));
-    if (!result) return NULL;
+    if (!result) return nullptr;
 
     FILE *fp = fopen(path, "rb");
     if (!fp) {
@@ -711,7 +711,7 @@ extern "C" HashResult* file_ops_compute_hash(const char *path) {
     hash_to_hex(sha1_hash, 20, result->sha1);
     hash_to_hex(sha256_hash, 32, result->sha256);
     hash_to_hex(sha512_hash, 64, result->sha512);
-    sprintf(result->crc32, "%08lx", (unsigned long)crc);
+    snprintf(result->crc32, sizeof(result->crc32), "%08lx", (unsigned long)crc);
 
     return result;
 }
@@ -725,7 +725,7 @@ extern "C" void file_ops_free_hash_result(HashResult *result) {
 // ============================================================
 extern "C" DiskUsageInfo* file_ops_get_disk_usage(const char *path) {
     DiskUsageInfo *info = (DiskUsageInfo*)calloc(1, sizeof(DiskUsageInfo));
-    if (!info) return NULL;
+    if (!info) return nullptr;
 
     struct statvfs vfs;
     if (statvfs(path, &vfs) != 0) {
@@ -796,7 +796,7 @@ extern "C" void file_ops_free_string(const char *str) {
 // ============================================================
 extern "C" SearchResultList* file_ops_find_duplicates(const char *dir, int max_results) {
     SearchResultList *result = (SearchResultList*)calloc(1, sizeof(SearchResultList));
-    if (!result) return NULL;
+    if (!result) return nullptr;
     result->capacity = 256;
     result->items = (SearchResult*)calloc(result->capacity, sizeof(SearchResult));
     if (!result->items) return result;
@@ -871,7 +871,7 @@ extern "C" SearchResultList* file_ops_find_duplicates(const char *dir, int max_r
 // ============================================================
 extern "C" SearchResultList* file_ops_find_empty_files(const char *dir, int max_results) {
     SearchResultList *result = (SearchResultList*)calloc(1, sizeof(SearchResultList));
-    if (!result) return NULL;
+    if (!result) return nullptr;
     result->capacity = 256;
     result->items = (SearchResult*)calloc(result->capacity, sizeof(SearchResult));
     if (!result->items) return result;
@@ -923,12 +923,12 @@ extern "C" SearchResultList* file_ops_find_empty_files(const char *dir, int max_
 // ============================================================
 extern "C" SearchResultList* file_ops_get_recent_files(const char *dir, int days, int max_results) {
     SearchResultList *result = (SearchResultList*)calloc(1, sizeof(SearchResultList));
-    if (!result) return NULL;
+    if (!result) return nullptr;
     result->capacity = 256;
     result->items = (SearchResult*)calloc(result->capacity, sizeof(SearchResult));
     if (!result->items) return result;
 
-    time_t now = time(NULL);
+    time_t now = time(nullptr);
     time_t cutoff = now - (time_t)days * 86400;
 
     try {
@@ -1162,16 +1162,16 @@ extern "C" int file_ops_decrypt_file(const char *src, const char *dst, const cha
 
 extern "C" char* file_ops_read_file_text(const char *path) {
     FILE *fp = fopen(path, "rb");
-    if (!fp) return NULL;
+    if (!fp) return nullptr;
 
     fseek(fp, 0, SEEK_END);
     long size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    if (size < 0) { fclose(fp); return NULL; }
+    if (size < 0) { fclose(fp); return nullptr; }
 
     char *buf = (char*)malloc(size + 1);
-    if (!buf) { fclose(fp); return NULL; }
+    if (!buf) { fclose(fp); return nullptr; }
 
     size_t read = fread(buf, 1, size, fp);
     fclose(fp);
@@ -1199,18 +1199,18 @@ extern "C" int file_ops_write_file_text(const char *path, const char *content,
 extern "C" unsigned char* file_ops_read_file_chunk(const char *path, int64_t offset,
                                                     int length, int *out_len) {
     FILE *fp = fopen(path, "rb");
-    if (!fp) { if (out_len) *out_len = 0; return NULL; }
+    if (!fp) { if (out_len) *out_len = 0; return nullptr; }
 
     fseek(fp, 0, SEEK_END);
     int64_t file_size = ftell(fp);
 
-    if (offset >= file_size) { fclose(fp); if (out_len) *out_len = 0; return NULL; }
+    if (offset >= file_size) { fclose(fp); if (out_len) *out_len = 0; return nullptr; }
 
     int64_t actual = length;
     if (offset + actual > file_size) actual = file_size - offset;
 
     unsigned char *buf = (unsigned char*)malloc(actual);
-    if (!buf) { fclose(fp); if (out_len) *out_len = 0; return NULL; }
+    if (!buf) { fclose(fp); if (out_len) *out_len = 0; return nullptr; }
 
     fseek(fp, offset, SEEK_SET);
     size_t read = fread(buf, 1, (size_t)actual, fp);
@@ -1222,16 +1222,16 @@ extern "C" unsigned char* file_ops_read_file_chunk(const char *path, int64_t off
 
 extern "C" unsigned char* file_ops_read_file_bytes(const char *path, int *out_len) {
     FILE *fp = fopen(path, "rb");
-    if (!fp) { if (out_len) *out_len = 0; return NULL; }
+    if (!fp) { if (out_len) *out_len = 0; return nullptr; }
 
     fseek(fp, 0, SEEK_END);
     long size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    if (size < 0) { fclose(fp); if (out_len) *out_len = 0; return NULL; }
+    if (size < 0) { fclose(fp); if (out_len) *out_len = 0; return nullptr; }
 
     unsigned char *buf = (unsigned char*)malloc(size);
-    if (!buf) { fclose(fp); if (out_len) *out_len = 0; return NULL; }
+    if (!buf) { fclose(fp); if (out_len) *out_len = 0; return nullptr; }
 
     size_t read = fread(buf, 1, size, fp);
     fclose(fp);
@@ -1412,7 +1412,7 @@ extern "C" int file_ops_split_file(const char *path, long long part_size, const 
     long long remaining = 0;
     int part_index = 1;
     char part_path[2048];
-    FILE *out = NULL;
+    FILE *out = nullptr;
     size_t n;
     int ret = 0;
     while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
@@ -1439,7 +1439,7 @@ extern "C" int file_ops_split_file(const char *path, long long part_size, const 
             remaining -= (long long)take;
             if (remaining == 0) {
                 fclose(out);
-                out = NULL;
+                out = nullptr;
                 part_index++;
             }
         }

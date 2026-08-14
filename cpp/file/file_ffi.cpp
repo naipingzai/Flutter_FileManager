@@ -417,7 +417,7 @@ static const char b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstu
 static char *make_base64(const unsigned char *data, int len) {
     int out_len = 4 * ((len + 2) / 3);
     char *b64 = (char *)malloc((size_t)out_len + 1);
-    if (!b64) return NULL;
+    if (!b64) return nullptr;
     int i = 0, j = 0;
     while (i < len) {
         unsigned int a = i < len ? data[i++] : 0;

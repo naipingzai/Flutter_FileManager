@@ -93,7 +93,7 @@ struct DIR {
 
 static inline DIR* opendir(const char* path) {
     DIR* d = (DIR*)calloc(1, sizeof(DIR));
-    if (!d) return NULL;
+    if (!d) return nullptr;
 
     std::string pattern(path);
     if (pattern.empty() || pattern.back() != '\\' && pattern.back() != '/') {
@@ -104,20 +104,20 @@ static inline DIR* opendir(const char* path) {
     d->handle = FindFirstFileA(pattern.c_str(), &d->find_data);
     if (d->handle == INVALID_HANDLE_VALUE) {
         free(d);
-        return NULL;
+        return nullptr;
     }
     d->first = true;
     return d;
 }
 
 static inline struct dirent* readdir(DIR* dir) {
-    if (!dir) return NULL;
+    if (!dir) return nullptr;
 
     if (dir->first) {
         dir->first = false;
     } else {
         if (!FindNextFileA(dir->handle, &dir->find_data)) {
-            return NULL;
+            return nullptr;
         }
     }
     strncpy(dir->entry.d_name, dir->find_data.cFileName,
@@ -196,7 +196,7 @@ static inline int rmdir(const char* path) {
 }
 
 static inline int mkdir(const char* path, int /*mode*/) {
-    if (CreateDirectoryA(path, NULL)) return 0;
+    if (CreateDirectoryA(path, nullptr)) return 0;
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         errno = EEXIST;
     } else {
@@ -239,7 +239,7 @@ static inline int symlink(const char* target, const char* linkpath) {
 }
 
 static inline int link(const char* oldpath, const char* newpath) {
-    if (CreateHardLinkA(newpath, oldpath, NULL)) return 0;
+    if (CreateHardLinkA(newpath, oldpath, nullptr)) return 0;
     errno = EPERM;
     return -1;
 }
@@ -295,8 +295,8 @@ static inline int fnmatch(const char* pattern, const char* name, int /*flags*/) 
     // * ? 简单通配
     const char* p = pattern;
     const char* n = name;
-    const char* star_p = NULL;
-    const char* star_n = NULL;
+    const char* star_p = nullptr;
+    const char* star_n = nullptr;
 
     while (*n) {
         if (*p == '*') {
@@ -320,12 +320,12 @@ static inline int fnmatch(const char* pattern, const char* name, int /*flags*/) 
 
 // ---- realpath 兼容 ----
 static inline char* realpath(const char* path, char* resolved) {
-    DWORD len = GetFullPathNameA(path, PATH_MAX, resolved ? resolved : (char*)malloc(PATH_MAX), NULL);
+    DWORD len = GetFullPathNameA(path, PATH_MAX, resolved ? resolved : (char*)malloc(PATH_MAX), nullptr);
     if (resolved) {
-        if (len == 0) { errno = ENOENT; return NULL; }
+        if (len == 0) { errno = ENOENT; return nullptr; }
         return resolved;
     }
-    return NULL;
+    return nullptr;
 }
 
 // ---- sendfile（复制用，基于句柄的 ReadFile/WriteFile 实现）----
@@ -351,7 +351,7 @@ static inline int open(const char* path, int flags, ...) {
     } else if (flags & O_TRUNC) {
         disp = TRUNCATE_EXISTING;
     }
-    HANDLE h = CreateFileA(path, access, share, NULL, disp, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE h = CreateFileA(path, access, share, nullptr, disp, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) { errno = ENOENT; return -1; }
     return (int)(intptr_t)h;
 }
@@ -384,15 +384,15 @@ static inline ssize_t sendfile(int out_fd, int in_fd, off_t* offset, size_t coun
     HANDLE hout = (HANDLE)(intptr_t)out_fd;
     LARGE_INTEGER li;
     li.QuadPart = *offset;
-    if (!SetFilePointerEx(hin, li, NULL, FILE_BEGIN)) return -1;
+    if (!SetFilePointerEx(hin, li, nullptr, FILE_BEGIN)) return -1;
     size_t total = 0;
     unsigned char buf[65536];
     while (count > 0) {
         DWORD to_read = (DWORD)(count > sizeof(buf) ? sizeof(buf) : count);
         DWORD got = 0;
-        if (!ReadFile(hin, buf, to_read, &got, NULL) || got == 0) break;
+        if (!ReadFile(hin, buf, to_read, &got, nullptr) || got == 0) break;
         DWORD written = 0;
-        if (!WriteFile(hout, buf, got, &written, NULL)) break;
+        if (!WriteFile(hout, buf, got, &written, nullptr)) break;
         total += written;
         *offset += written;
         count -= written;

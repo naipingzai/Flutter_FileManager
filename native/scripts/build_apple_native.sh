@@ -85,17 +85,23 @@ fi
 echo "[native] 合并静态库:"
 for l in ${ALL_LIBS}; do echo "  - ${l}"; done
 
-# 用 MRI 脚本合并所有 .a（逐项 ADDLIB）
-MRI="CREATE ${OUT_A}
-"
-for l in ${ALL_LIBS}; do
-    MRI+="ADDLIB ${l}
-"
-done
-MRI+="SAVE
-END"
-
-ar -M <<< "${MRI}"
+# 用 libtool -static 合并（macOS 的 ar 不支持 GNU MRI -M 脚本）
+if command -v libtool >/dev/null 2>&1; then
+    libtool -static -o "${OUT_A}" ${ALL_LIBS}
+else
+    echo "[native] 未找到 libtool，改用 解包+重打包 合并" >&2
+    MERGE_DIR="${BUILD_DIR}/_merge_tmp"
+    rm -rf "${MERGE_DIR}"; mkdir -p "${MERGE_DIR}"
+    n=0
+    for l in ${ALL_LIBS}; do
+        d="${MERGE_DIR}/lib_${n}"; mkdir -p "${d}"
+        (cd "${d}" && ar -x "${l}")
+        n=$((n+1))
+    done
+    # shellcheck disable=SC2035
+    (cd "${MERGE_DIR}" && find . -name '*.o' -exec ar -rcs "${OUT_A}" {} +)
+    rm -rf "${MERGE_DIR}"
+fi
 ranlib "${OUT_A}"
 
 echo "[native] 完成: ${OUT_A}"

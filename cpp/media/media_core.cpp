@@ -58,10 +58,10 @@ static const char b64_table[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static char *base64_encode(const unsigned char *data, int len, int *out_len) {
-    if (!data || len < 0) return NULL;
+    if (!data || len < 0) return nullptr;
     int olen = 4 * ((len + 2) / 3);
     char *b64 = (char *)malloc(olen + 1);
-    if (!b64) return NULL;
+    if (!b64) return nullptr;
     int i = 0, j = 0;
     while (i < len) {
         unsigned int a = i < len ? data[i++] : 0;
@@ -79,7 +79,7 @@ static char *base64_encode(const unsigned char *data, int len, int *out_len) {
 }
 
 static char *strdup_std(const char *s) {
-    if (!s) return NULL;
+    if (!s) return nullptr;
     size_t n = strlen(s) + 1;
     char *d = (char *)malloc(n);
     if (d) memcpy(d, s, n);
@@ -87,18 +87,18 @@ static char *strdup_std(const char *s) {
 }
 
 static unsigned char *read_file_bytes(const char *path, int *out_len) {
-    if (!path) return NULL;
+    if (!path) return nullptr;
     FILE *f = fopen(path, "rb");
-    if (!f) return NULL;
+    if (!f) return nullptr;
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if (size <= 0) { fclose(f); return NULL; }
+    if (size <= 0) { fclose(f); return nullptr; }
     unsigned char *buf = (unsigned char *)malloc((size_t)size);
-    if (!buf) { fclose(f); return NULL; }
+    if (!buf) { fclose(f); return nullptr; }
     size_t rd = fread(buf, 1, (size_t)size, f);
     fclose(f);
-    if (rd != (size_t)size) { free(buf); return NULL; }
+    if (rd != (size_t)size) { free(buf); return nullptr; }
     if (out_len) *out_len = (int)size;
     return buf;
 }
@@ -194,7 +194,7 @@ char *media_epub_extract_text(const char *path) {
     }
     size_t csize = 0;
     void *cdata = mz_zip_reader_extract_file_to_heap(&zip, "META-INF/container.xml", &csize, 0);
-    char *content_path = NULL;
+    char *content_path = nullptr;
     if (cdata) {
         char *xml = (char *)malloc(csize + 1);
         if (xml) {
@@ -220,7 +220,7 @@ char *media_epub_extract_text(const char *path) {
         }
         free(cdata);
     }
-    char *result = NULL;
+    char *result = nullptr;
     if (content_path) {
         size_t size = 0;
         void *cdata2 = mz_zip_reader_extract_file_to_heap(&zip, content_path, &size, 0);
@@ -400,7 +400,7 @@ int media_archive_create(const char *src_path, const char *zip_path, char *error
 
     if (std::filesystem::is_directory(src_path)) {
         std::string top = base + "/";
-        mz_zip_writer_add_mem(&zip, top.c_str(), NULL, 0, 0);
+        mz_zip_writer_add_mem(&zip, top.c_str(), nullptr, 0, 0);
         std::string src_prefix = std::string(src_path);
         for (auto it = std::filesystem::recursive_directory_iterator(
                  src_path, std::filesystem::directory_options::skip_permission_denied, ec);
@@ -414,7 +414,7 @@ int media_archive_create(const char *src_path, const char *zip_path, char *error
             std::replace(rel.begin(), rel.end(), '\\', '/');
             if (it->is_directory(ec)) {
                 if (!rel.empty() && rel.back() != '/') rel += '/';
-                mz_zip_writer_add_mem(&zip, rel.c_str(), NULL, 0, 0);
+                mz_zip_writer_add_mem(&zip, rel.c_str(), nullptr, 0, 0);
             } else if (it->is_regular_file(ec)) {
                 if (!add_file_entry(rel, it->path().string())) { ret = -1; break; }
             }
@@ -484,9 +484,9 @@ typedef struct {
 } MediaCtx;
 
 static MediaCtx *media_open_mem(const unsigned char *data, int len) {
-    if (!data || len <= 0) return NULL;
+    if (!data || len <= 0) return nullptr;
     MediaCtx *m = (MediaCtx *)calloc(1, sizeof(MediaCtx));
-    if (!m) return NULL;
+    if (!m) return nullptr;
     m->mem.data = data;
     m->mem.len = len;
     m->mem.pos = 0;
@@ -494,8 +494,8 @@ static MediaCtx *media_open_mem(const unsigned char *data, int len) {
     m->audio_stream = -1;
     const int avio_buf_size = 256 * 1024;
     m->avio = avio_alloc_context((unsigned char *)av_malloc(avio_buf_size), avio_buf_size, 0, &m->mem,
-                                 mem_read_packet, NULL, mem_seek);
-    if (!m->avio) { free(m); return NULL; }
+                                 mem_read_packet, nullptr, mem_seek);
+    if (!m->avio) { free(m); return nullptr; }
     m->avio->seekable = AVIO_SEEKABLE_NORMAL;
 #if !defined(LIBAVFORMAT_VERSION_MAJOR) || LIBAVFORMAT_VERSION_MAJOR < 61
     m->avio->maxsize = m->mem.len;
@@ -505,16 +505,16 @@ static MediaCtx *media_open_mem(const unsigned char *data, int len) {
     m->fmt_ctx->flags |= AVFMT_FLAG_CUSTOM_IO;
     m->fmt_ctx->probesize = 50 * 1024 * 1024;
     m->fmt_ctx->max_analyze_duration = 30 * AV_TIME_BASE;
-    if (avformat_open_input(&m->fmt_ctx, NULL, NULL, NULL) != 0) {
+    if (avformat_open_input(&m->fmt_ctx, nullptr, nullptr, nullptr) != 0) {
         avio_context_free(&m->avio);
         free(m);
-        return NULL;
+        return nullptr;
     }
-    if (avformat_find_stream_info(m->fmt_ctx, NULL) < 0) {
+    if (avformat_find_stream_info(m->fmt_ctx, nullptr) < 0) {
         avformat_close_input(&m->fmt_ctx);
         avio_context_free(&m->avio);
         free(m);
-        return NULL;
+        return nullptr;
     }
     for (unsigned int i = 0; i < m->fmt_ctx->nb_streams; i++) {
         AVStream *st = m->fmt_ctx->streams[i];
@@ -531,28 +531,28 @@ void *media_video_open(const unsigned char *data, int len) {
     MediaCtx *m = media_open_mem(data, len);
     if (!m || m->video_stream < 0) {
         if (m) media_video_close(m);
-        return NULL;
+        return nullptr;
     }
     AVStream *st = m->fmt_ctx->streams[m->video_stream];
     const AVCodec *codec = avcodec_find_decoder(st->codecpar->codec_id);
-    if (!codec) { media_video_close(m); return NULL; }
+    if (!codec) { media_video_close(m); return nullptr; }
     m->codec_ctx = avcodec_alloc_context3(codec);
-    if (!m->codec_ctx) { media_video_close(m); return NULL; }
+    if (!m->codec_ctx) { media_video_close(m); return nullptr; }
     if (avcodec_parameters_to_context(m->codec_ctx, st->codecpar) < 0) {
         media_video_close(m);
-        return NULL;
+        return nullptr;
     }
     m->codec_ctx->pkt_timebase = st->time_base;
-    if (avcodec_open2(m->codec_ctx, codec, NULL) < 0) {
+    if (avcodec_open2(m->codec_ctx, codec, nullptr) < 0) {
         media_video_close(m);
-        return NULL;
+        return nullptr;
     }
     enum AVPixelFormat src_fmt = m->codec_ctx->pix_fmt;
     if (src_fmt == AV_PIX_FMT_NONE) src_fmt = AV_PIX_FMT_YUV420P;
     m->sws_ctx = sws_getContext(m->codec_ctx->width, m->codec_ctx->height, src_fmt,
                                 m->codec_ctx->width, m->codec_ctx->height,
-                                AV_PIX_FMT_RGBA, SWS_BILINEAR, NULL, NULL, NULL);
-    if (!m->sws_ctx) { media_video_close(m); return NULL; }
+                                AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
+    if (!m->sws_ctx) { media_video_close(m); return nullptr; }
     double fps = st->avg_frame_rate.num && st->avg_frame_rate.den
                  ? av_q2d(st->avg_frame_rate) : 25.0;
     m->fps = fps > 0 ? fps : 25.0;
@@ -589,7 +589,7 @@ static int media_video_next_frame_rgba_internal(MediaCtx *m,
                 }
                 int need = w * h * 4;
                 if (out_cap < need) { ret = -2; goto cleanup; }
-                uint8_t *dst_data[4] = { NULL, NULL, NULL, NULL };
+                uint8_t *dst_data[4] = { nullptr, nullptr, nullptr, nullptr };
                 int dst_linesize[4] = { 0, 0, 0, 0 };
                 int av_ret = av_image_alloc(dst_data, dst_linesize, w, h, AV_PIX_FMT_RGBA, 32);
                 if (av_ret < 0 || !dst_data[0]) {
@@ -664,7 +664,7 @@ void media_video_close(void *handle) {
     if (m->sws_ctx) sws_freeContext(m->sws_ctx);
     if (m->codec_ctx) avcodec_free_context(&m->codec_ctx);
     if (m->fmt_ctx) {
-        m->fmt_ctx->pb = NULL;
+        m->fmt_ctx->pb = nullptr;
         avformat_close_input(&m->fmt_ctx);
     }
     if (m->avio) avio_context_free(&m->avio);
@@ -707,7 +707,7 @@ char *media_decode_audio(const unsigned char *data, int len) {
         media_video_close(m);
         return strdup_std("{\"error\":\"params\",\"base64\":\"\",\"sample_rate\":0,\"channels\":0,\"bits\":0,\"length\":0}");
     }
-    if (avcodec_open2(actx, codec, NULL) < 0) {
+    if (avcodec_open2(actx, codec, nullptr) < 0) {
         avcodec_free_context(&actx);
         media_video_close(m);
         return strdup_std("{\"error\":\"open\",\"base64\":\"\",\"sample_rate\":0,\"channels\":0,\"bits\":0,\"length\":0}");
@@ -750,7 +750,7 @@ char *media_decode_audio(const unsigned char *data, int len) {
     AVPacket pkt;
     memset(&pkt, 0, sizeof(pkt));
     AVFrame *frm = av_frame_alloc();
-    ByteBuf pcm = { NULL, 0, 0 };
+    ByteBuf pcm = { nullptr, 0, 0 };
     int decode_ok = 0;
     while (av_read_frame(m->fmt_ctx, &pkt) >= 0) {
         if (pkt.stream_index == m->audio_stream && pkt.size > 0) {
@@ -770,14 +770,14 @@ char *media_decode_audio(const unsigned char *data, int len) {
 #endif
                 int out_samples = swr_get_out_samples(swr, frm->nb_samples);
                 if (out_samples <= 0) continue;
-                int obytes = av_samples_get_buffer_size(NULL, ch, out_samples, AV_SAMPLE_FMT_S16, 1);
+                int obytes = av_samples_get_buffer_size(nullptr, ch, out_samples, AV_SAMPLE_FMT_S16, 1);
                 if (obytes <= 0) continue;
                 unsigned char *obuf = (unsigned char *)malloc((size_t)obytes);
                 if (!obuf) break;
                 uint8_t *obufs[1] = { obuf };
                 int got = swr_convert(swr, obufs, out_samples,
                                       (const uint8_t **)frm->extended_data, frm->nb_samples);
-                int bytes = got > 0 ? av_samples_get_buffer_size(NULL, ch, got, AV_SAMPLE_FMT_S16, 1) : 0;
+                int bytes = got > 0 ? av_samples_get_buffer_size(nullptr, ch, got, AV_SAMPLE_FMT_S16, 1) : 0;
                 if (bytes > 0 && bytebuf_append(&pcm, obuf, (size_t)bytes) != 0) {
                     free(obuf);
                     break;
@@ -788,7 +788,7 @@ char *media_decode_audio(const unsigned char *data, int len) {
         }
         av_packet_unref(&pkt);
     }
-    avcodec_send_packet(actx, NULL);
+    avcodec_send_packet(actx, nullptr);
     while (avcodec_receive_frame(actx, frm) >= 0) {
 #if MEDIA_HAS_CHLAYOUT
         int ch = frm->ch_layout.nb_channels > 0 ? frm->ch_layout.nb_channels : out_ch;
@@ -797,14 +797,14 @@ char *media_decode_audio(const unsigned char *data, int len) {
 #endif
         int out_samples = swr_get_out_samples(swr, frm->nb_samples);
         if (out_samples <= 0) continue;
-        int obytes = av_samples_get_buffer_size(NULL, ch, out_samples, AV_SAMPLE_FMT_S16, 1);
+        int obytes = av_samples_get_buffer_size(nullptr, ch, out_samples, AV_SAMPLE_FMT_S16, 1);
         if (obytes <= 0) continue;
         unsigned char *obuf = (unsigned char *)malloc((size_t)obytes);
         if (!obuf) break;
         uint8_t *obufs[1] = { obuf };
         int got = swr_convert(swr, obufs, out_samples,
                               (const uint8_t **)frm->extended_data, frm->nb_samples);
-        int bytes = got > 0 ? av_samples_get_buffer_size(NULL, ch, got, AV_SAMPLE_FMT_S16, 1) : 0;
+        int bytes = got > 0 ? av_samples_get_buffer_size(nullptr, ch, got, AV_SAMPLE_FMT_S16, 1) : 0;
         if (bytes > 0 && bytebuf_append(&pcm, obuf, (size_t)bytes) != 0) { free(obuf); break; }
         free(obuf);
         decode_ok = 1;
@@ -836,7 +836,7 @@ char *media_decode_audio(const unsigned char *data, int len) {
 
 void *media_video_open(const unsigned char *data, int len) {
     (void)data; (void)len;
-    return NULL;
+    return nullptr;
 }
 int media_video_next_frame_rgba(void *handle, unsigned char *out, int out_cap,
                                 int *out_w, int *out_h, double *out_ts) {
@@ -865,7 +865,7 @@ char *media_decode_audio(const unsigned char *data, int len) {
 // ============================================================
 __attribute__((weak)) void *media_audio_output_open(int sample_rate, int channels, int bits) {
     (void)sample_rate; (void)channels; (void)bits;
-    return NULL;
+    return nullptr;
 }
 __attribute__((weak)) int media_audio_output_write(void *handle, const unsigned char *pcm, int len) {
     (void)handle; (void)pcm; (void)len;

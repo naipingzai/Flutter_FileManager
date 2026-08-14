@@ -33,14 +33,16 @@ runs:
         mkdir -p "${DIR}/include" "${DIR}/lib"
         dl_merge() { # $1=tag  $2=dep
           local tag="$1" dep="$2"
-          mkdir -p "${GITHUB_WORKSPACE}/_thirdparty/${dep}"
+          # Windows(Git Bash) 下把 Windows 路径转成 unix 路径，供 tar 使用
+          local W
+          if command -v cygpath >/dev/null 2>&1; then W="cygpath -u"; else W="true"; fi
+          local base=$($W "${GITHUB_WORKSPACE}/_thirdparty")
+          mkdir -p "${base}/${dep}"
           curl -fL --retry 3 --retry-delay 2 \
-            -o "${GITHUB_WORKSPACE}/_thirdparty/${dep}.tar.gz" \
+            -o "${base}/${dep}.tar.gz" \
             "${BASE}/${tag}/${dep}-${{ inputs.platform }}.tar.gz"
-          tar xzf "${GITHUB_WORKSPACE}/_thirdparty/${dep}.tar.gz" \
-            -C "${GITHUB_WORKSPACE}/_thirdparty/${dep}"
-          # tarball 顶层为 <plat>，故 root = <dep>/<plat>/<arch>
-          local root="${GITHUB_WORKSPACE}/_thirdparty/${dep}/${{ inputs.platform }}/${{ inputs.arch }}"
+          tar xzf "${base}/${dep}.tar.gz" -C "${base}/${dep}"
+          local root="${base}/${dep}/${{ inputs.platform }}/${{ inputs.arch }}"
           cp -a "${root}/include/." "${DIR}/include/"
           cp -a "${root}/lib/."     "${DIR}/lib/"
         }
@@ -48,5 +50,11 @@ runs:
         dl_merge "${{ inputs.miniz_tag }}" "miniz"
         dl_merge "${{ inputs.stb_tag }}"   "stb_image"
         test -d "${DIR}/lib" && test -d "${DIR}/include"
-        echo "THIRDPARTY_DIR=${DIR}" >> "${GITHUB_ENV}"
-        echo "THIRDPARTY_DIR=${DIR}"
+        # 转成 forward slash 路径，供 CMake 使用
+        if command -v cygpath >/dev/null 2>&1; then
+          TP="$(cygpath -m "${DIR}")"
+        else
+          TP="${DIR}"
+        fi
+        echo "THIRDPARTY_DIR=${TP}" >> "${GITHUB_ENV}"
+        echo "THIRDPARTY_DIR=${TP}"

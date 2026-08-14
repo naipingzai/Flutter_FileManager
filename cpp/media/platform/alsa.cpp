@@ -20,14 +20,14 @@ typedef struct {
 
 extern "C" void* media_audio_output_open(int sample_rate, int channels, int bits) {
     (void)bits;
-    if (sample_rate <= 0 || channels <= 0 || channels > 8) return NULL;
+    if (sample_rate <= 0 || channels <= 0 || channels > 8) return nullptr;
     AlsaOutput* a = (AlsaOutput*)calloc(1, sizeof(AlsaOutput));
-    if (!a) return NULL;
+    if (!a) return nullptr;
     a->rate = (unsigned int)sample_rate;
     a->channels = channels;
 
     int err = snd_pcm_open(&a->pcm, "default", SND_PCM_STREAM_PLAYBACK, 0);
-    if (err < 0) { free(a); return NULL; }
+    if (err < 0) { free(a); return nullptr; }
 
     snd_pcm_hw_params_t* hw;
     snd_pcm_hw_params_alloca(&hw);
@@ -45,7 +45,7 @@ extern "C" void* media_audio_output_open(int sample_rate, int channels, int bits
     if (snd_pcm_hw_params(a->pcm, hw) < 0) {
         snd_pcm_close(a->pcm);
         free(a);
-        return NULL;
+        return nullptr;
     }
     a->period_size = period;
     snd_pcm_prepare(a->pcm);

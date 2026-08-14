@@ -19,14 +19,14 @@ typedef struct {
 
 extern "C" void* media_audio_output_open(int sample_rate, int channels, int bits) {
     (void)bits;
-    if (sample_rate <= 0 || channels <= 0 || channels > 8) return NULL;
+    if (sample_rate <= 0 || channels <= 0 || channels > 8) return nullptr;
     AAudioOutput* a = (AAudioOutput*)calloc(1, sizeof(AAudioOutput));
-    if (!a) return NULL;
+    if (!a) return nullptr;
     a->channels = channels;
     a->sample_rate = sample_rate;
 
-    AAudioStreamBuilder* builder = NULL;
-    if (AAudio_createStreamBuilder(&builder) != AAUDIO_OK) { free(a); return NULL; }
+    AAudioStreamBuilder* builder = nullptr;
+    if (AAudio_createStreamBuilder(&builder) != AAUDIO_OK) { free(a); return nullptr; }
     AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
     AAudioStreamBuilder_setSampleRate(builder, sample_rate);
     AAudioStreamBuilder_setChannelCount(builder, channels);
@@ -35,7 +35,7 @@ extern "C" void* media_audio_output_open(int sample_rate, int channels, int bits
     AAudioStreamBuilder_delete(builder);
     if (res != AAUDIO_OK || !a->stream) {
         free(a);
-        return NULL;
+        return nullptr;
     }
     return a;
 }

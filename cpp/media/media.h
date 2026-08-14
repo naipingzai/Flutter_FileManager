@@ -56,7 +56,7 @@ char *media_epub_list_files(const char *path);
 // 视频/音频（FFmpeg）
 // ============================================================
 
-// 打开视频流（内存）。返回句柄，失败返回 NULL。
+// 打开视频流（内存）。返回句柄，失败返回 nullptr。
 MEDIA_API
 void *media_video_open(const unsigned char *data, int len);
 
@@ -88,7 +88,7 @@ char *media_decode_audio(const unsigned char *data, int len);
 // 播放 media 库解码出的 PCM 数据（S16 交错，little-endian）
 // ============================================================
 
-// 打开音频输出设备。返回句柄，失败返回 NULL。
+// 打开音频输出设备。返回句柄，失败返回 nullptr。
 MEDIA_API
 void *media_audio_output_open(int sample_rate, int channels, int bits);
 

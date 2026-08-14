@@ -28,13 +28,13 @@ typedef struct {
 
 static HRESULT wasapi_initialize(WasapiOutput* w, int sample_rate, int channels) {
     HRESULT hr;
-    IMMDeviceEnumerator* enumerator = NULL;
-    IMMDevice* device = NULL;
+    IMMDeviceEnumerator* enumerator = nullptr;
+    IMMDevice* device = nullptr;
 
-    hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return hr;
 
-    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
+    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
                           IID_PPV_ARGS(&enumerator));
     if (FAILED(hr)) return hr;
 
@@ -42,7 +42,7 @@ static HRESULT wasapi_initialize(WasapiOutput* w, int sample_rate, int channels)
     enumerator->Release();
     if (FAILED(hr)) return hr;
 
-    hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void**)&w->client);
+    hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, (void**)&w->client);
     device->Release();
     if (FAILED(hr)) return hr;
 
@@ -59,13 +59,13 @@ static HRESULT wasapi_initialize(WasapiOutput* w, int sample_rate, int channels)
     REFERENCE_TIME duration = 5000000; // 500ms
     hr = w->client->Initialize(AUDCLNT_SHAREMODE_SHARED,
                                AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-                               duration, 0, &fmt, NULL);
+                               duration, 0, &fmt, nullptr);
     if (FAILED(hr)) return hr;
 
     hr = w->client->GetBufferSize(&w->buffer_frames);
     if (FAILED(hr)) return hr;
 
-    w->event = CreateEventW(NULL, FALSE, FALSE, NULL);
+    w->event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!w->event) return E_FAIL;
     hr = w->client->SetEventHandle(w->event);
     if (FAILED(hr)) return hr;
@@ -81,12 +81,12 @@ static HRESULT wasapi_initialize(WasapiOutput* w, int sample_rate, int channels)
 
 extern "C" void* media_audio_output_open(int sample_rate, int channels, int bits) {
     (void)bits;
-    if (sample_rate <= 0 || channels <= 0 || channels > 8) return NULL;
+    if (sample_rate <= 0 || channels <= 0 || channels > 8) return nullptr;
     WasapiOutput* w = (WasapiOutput*)calloc(1, sizeof(WasapiOutput));
-    if (!w) return NULL;
+    if (!w) return nullptr;
     if (FAILED(wasapi_initialize(w, sample_rate, channels))) {
         media_audio_output_close(w);
-        return NULL;
+        return nullptr;
     }
     return w;
 }
@@ -108,7 +108,7 @@ extern "C" int media_audio_output_write(void* handle, const unsigned char* pcm, 
         }
         UINT32 todo = frames_total - written;
         if (todo > avail) todo = avail;
-        BYTE* data = NULL;
+        BYTE* data = nullptr;
         if (FAILED(w->render->GetBuffer(todo, &data))) return -1;
         memcpy(data, src, (size_t)todo * w->frame_size);
         if (FAILED(w->render->ReleaseBuffer(todo, 0))) return -1;

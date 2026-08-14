@@ -21,21 +21,21 @@ static char *wstr_to_utf8(const wchar_t *ws) {
         if (empty) empty[0] = '\0';
         return empty;
     }
-    int len = WideCharToMultiByte(CP_UTF8, 0, ws, -1, NULL, 0, NULL, NULL);
+    int len = WideCharToMultiByte(CP_UTF8, 0, ws, -1, nullptr, 0, nullptr, nullptr);
     if (len <= 0) {
         char *empty = (char *)malloc(1);
         if (empty) empty[0] = '\0';
         return empty;
     }
     char *buf = (char *)malloc((size_t)len);
-    if (!buf) return NULL;
-    WideCharToMultiByte(CP_UTF8, 0, ws, -1, buf, len, NULL, NULL);
+    if (!buf) return nullptr;
+    WideCharToMultiByte(CP_UTF8, 0, ws, -1, buf, len, nullptr, nullptr);
     return buf;
 }
 
 static char *known_folder(REFKNOWNFOLDERID id) {
-    PWSTR path = NULL;
-    if (SHGetKnownFolderPath(id, 0, NULL, &path) != S_OK || !path) {
+    PWSTR path = nullptr;
+    if (SHGetKnownFolderPath(id, 0, nullptr, &path) != S_OK || !path) {
         if (path) CoTaskMemFree(path);
         char *empty = (char *)malloc(1);
         if (empty) empty[0] = '\0';
@@ -48,12 +48,12 @@ static char *known_folder(REFKNOWNFOLDERID id) {
 
 extern "C" {
 
-const char *sys_get_os_name(void)        { return strdup("windows"); }
-const char *sys_get_path_separator(void) { return strdup("\\"); }
-const char *sys_get_newline(void)        { return strdup("\r\n"); }
-bool        sys_is_case_sensitive(void)  { return false; }
+const char *system_get_os_name(void)        { return strdup("windows"); }
+const char *system_get_path_separator(void) { return strdup("\\"); }
+const char *system_get_newline(void)        { return strdup("\r\n"); }
+bool        system_is_case_sensitive(void)  { return false; }
 
-const char *sys_get_arch(void) {
+const char *system_get_arch(void) {
     SYSTEM_INFO si;
     GetNativeSystemInfo(&si);
     switch (si.wProcessorArchitecture) {
@@ -64,7 +64,7 @@ const char *sys_get_arch(void) {
     }
 }
 
-char *sys_get_user_home(void) {
+char *system_get_user_home(void) {
     const char *up = getenv("USERPROFILE");
     if (up) return strdup(up);
     const char *hd = getenv("HOMEDRIVE");
@@ -78,8 +78,8 @@ char *sys_get_user_home(void) {
     return strdup("C:\\");
 }
 
-char *sys_get_root_dir(void)       { return strdup("C:\\"); }
-char *sys_get_temp_dir(void) {
+char *system_get_root_dir(void)       { return strdup("C:\\"); }
+char *system_get_temp_dir(void) {
     char buf[MAX_PATH];
     DWORD len = GetTempPathA(sizeof(buf), buf);
     if (len > 0) {
@@ -89,20 +89,20 @@ char *sys_get_temp_dir(void) {
     }
     return strdup("C:\\Windows\\Temp");
 }
-char *sys_get_downloads_dir(void)  { return known_folder(FOLDERID_Downloads); }
-char *sys_get_documents_dir(void)  { return known_folder(FOLDERID_Documents); }
-char *sys_get_desktop_dir(void)    { return known_folder(FOLDERID_Desktop); }
-char *sys_get_videos_dir(void)     { return known_folder(FOLDERID_Videos); }
-char *sys_get_music_dir(void)      { return known_folder(FOLDERID_Music); }
-char *sys_get_pictures_dir(void)   { return known_folder(FOLDERID_Pictures); }
-char *sys_get_app_data_dir(void) {
+char *system_get_downloads_dir(void)  { return known_folder(FOLDERID_Downloads); }
+char *system_get_documents_dir(void)  { return known_folder(FOLDERID_Documents); }
+char *system_get_desktop_dir(void)    { return known_folder(FOLDERID_Desktop); }
+char *system_get_videos_dir(void)     { return known_folder(FOLDERID_Videos); }
+char *system_get_music_dir(void)      { return known_folder(FOLDERID_Music); }
+char *system_get_pictures_dir(void)   { return known_folder(FOLDERID_Pictures); }
+char *system_get_app_data_dir(void) {
     return known_folder(FOLDERID_RoamingAppData);
 }
-char *sys_get_app_cache_dir(void) {
+char *system_get_app_cache_dir(void) {
     return known_folder(FOLDERID_LocalAppData);
 }
 
-char *sys_get_dir_display_name(const char *path) {
+char *system_get_dir_display_name(const char *path) {
     if (!path) return strdup("");
     const char *slash1 = strrchr(path, '\\');
     const char *slash2 = strrchr(path, '/');
@@ -111,19 +111,19 @@ char *sys_get_dir_display_name(const char *path) {
     return strdup(path);
 }
 
-char *sys_get_standard_dir(const char *category) {
+char *system_get_standard_dir(const char *category) {
     if (!category) return strdup("");
-    if      (!strcmp(category, "home"))      return sys_get_user_home();
-    else if (!strcmp(category, "root"))      return sys_get_root_dir();
-    else if (!strcmp(category, "temp"))      return sys_get_temp_dir();
-    else if (!strcmp(category, "downloads")) return sys_get_downloads_dir();
-    else if (!strcmp(category, "documents")) return sys_get_documents_dir();
-    else if (!strcmp(category, "desktop"))   return sys_get_desktop_dir();
-    else if (!strcmp(category, "videos"))    return sys_get_videos_dir();
-    else if (!strcmp(category, "music"))     return sys_get_music_dir();
-    else if (!strcmp(category, "pictures"))  return sys_get_pictures_dir();
-    else if (!strcmp(category, "app_data"))  return sys_get_app_data_dir();
-    else if (!strcmp(category, "app_cache")) return sys_get_app_cache_dir();
+    if      (!strcmp(category, "home"))      return system_get_user_home();
+    else if (!strcmp(category, "root"))      return system_get_root_dir();
+    else if (!strcmp(category, "temp"))      return system_get_temp_dir();
+    else if (!strcmp(category, "downloads")) return system_get_downloads_dir();
+    else if (!strcmp(category, "documents")) return system_get_documents_dir();
+    else if (!strcmp(category, "desktop"))   return system_get_desktop_dir();
+    else if (!strcmp(category, "videos"))    return system_get_videos_dir();
+    else if (!strcmp(category, "music"))     return system_get_music_dir();
+    else if (!strcmp(category, "pictures"))  return system_get_pictures_dir();
+    else if (!strcmp(category, "app_data"))  return system_get_app_data_dir();
+    else if (!strcmp(category, "app_cache")) return system_get_app_cache_dir();
     return strdup("");
 }
 
