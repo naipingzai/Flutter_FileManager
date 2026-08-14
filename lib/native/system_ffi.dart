@@ -5,9 +5,10 @@
 
 import 'dart:convert';
 import 'dart:ffi';
-import 'dart:io';
 
 import 'package:ffi/ffi.dart';
+
+import 'native_library.dart';
 
 // char* system_info(void)
 typedef SystemInfoNative = Pointer<Utf8> Function();
@@ -48,9 +49,7 @@ class SystemNative {
   }
 
   DynamicLibrary _loadLibrary() {
-    // Android 打包为 .so 时需要显式 open；其余平台静态库集成进进程。
-    if (Platform.isAndroid) return DynamicLibrary.open('libfileops.so');
-    return DynamicLibrary.process();
+    return loadNativeLibrary();
   }
 
   /// 获取完整平台信息 JSON：

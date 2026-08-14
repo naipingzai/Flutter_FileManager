@@ -119,6 +119,30 @@ function(fetch_ffmpeg)
     set(_lib_dir "${_FFMPEG_OUT_ROOT}/${_plat}/${_arch}/lib")
     set(_inc_dir "${_FFMPEG_OUT_ROOT}/${_plat}/${_arch}/include")
 
+    # ---- Windows/MSVC：依赖仓库的 FFmpeg 为 MinGW 的 .a，MSVC 无法直接链接 ----
+    # 用 llvm-lib 将 libav*.a 转换为 av*.lib（VS 2019+ 附带 LLVM 工具集）。
+    if(WIN32 AND MSVC AND EXISTS "${_lib_dir}")
+        find_program(_LLVM_LIB llvm-lib)
+        if(_LLVM_LIB)
+            file(GLOB _mingw_libs "${_lib_dir}/libav*.a")
+            foreach(_a IN LISTS _mingw_libs)
+                get_filename_component(_base "${_a}" NAME_WE)   # 去 lib 前缀与 .a 后缀
+                string(REGEX REPLACE "^lib" "" _libname "${_base}")
+                message(STATUS "[ffmpeg] 转换 ${_libname}.a -> ${_libname}.lib (llvm-lib)")
+                execute_process(
+                    COMMAND ${_LLVM_LIB} /machine:x64 "/out:${_lib_dir}/${_libname}.lib" "${_a}"
+                    RESULT_VARIABLE _conv_r)
+                if(NOT _conv_r EQUAL 0)
+                    message(WARNING "[ffmpeg] 转换失败: ${_a}（回退，MSVC 链接可能报错）")
+                endif()
+            endforeach()
+        else()
+            message(WARNING
+                "[ffmpeg] 未找到 llvm-lib。Windows/MSVC 需要 MinGW .a 转 .lib，
+                         请安装 LLVM 工具集或改用 MinGW 工具链。")
+        endif()
+    endif()
+
     if(EXISTS "${_lib_dir}" AND EXISTS "${_inc_dir}")
         set(FFMPEG_AVAILABLE TRUE)
         message(STATUS "[ffmpeg] 使用 ${_plat}/${_arch} (${_lib_dir})")

@@ -4,12 +4,14 @@
 // (file 模块 + text 模块，system 模块单独绑定)
 //
 // 通过 Dart FFI 调用 native modules 静态库。
-// 平台差异由 C++ 层处理，Dart 不调用 Platform.isXxx 业务分支。
-// 仅在加载动态库时根据 Platform.isAndroid 选择 .so（Flutter 平台实现细节）。
+// 平台差异由 C++ 层处理，Dart 不调用 Platform.isXxx。
+// 原生库统一由 native_library.dart 加载（不涉及任何平台判断）。
 
 import 'dart:ffi';
-import 'dart:io';
+
 import 'package:ffi/ffi.dart';
+
+import 'native_library.dart';
 
 // ============================================================
 // file 模块 FFI bindings
@@ -190,12 +192,8 @@ class CoreNative {
     return _instance!;
   }
 
-  // 静态库集成到可执行文件时使用 DynamicLibrary.process()；
-  // Android 打包为 .so 时需要显式 open。
-  // 这是 Flutter 平台加载 .so 的必要分支，不是业务平台判断。
   DynamicLibrary _loadLibrary() {
-    if (Platform.isAndroid) return DynamicLibrary.open('libfileops.so');
-    return DynamicLibrary.process();
+    return loadNativeLibrary();
   }
 
   void _bindFileModule() {

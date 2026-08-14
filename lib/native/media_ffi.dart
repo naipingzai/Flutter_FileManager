@@ -6,6 +6,8 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import 'native_library.dart';
+
 // ============================================================
 // media 静态库 FFI 绑定
 // 静态库直接集成进可执行文件，通过 DynamicLibrary.process() 查找符号
@@ -94,10 +96,7 @@ class MediaNative {
   late final AudioOutCloseDart audioOutClose;
 
   MediaNative._() {
-    // 静态库直接集成进可执行文件（Android 为 libfileops.so，其余走进程符号表）
-    _lib = Platform.isAndroid
-        ? DynamicLibrary.open('libfileops.so')
-        : DynamicLibrary.process();
+    _lib = loadNativeLibrary();
     _bindFunctions();
   }
 
