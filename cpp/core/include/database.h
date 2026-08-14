@@ -50,6 +50,12 @@ char *db_delete(int file_id);
 // 所有标签列表。
 char *db_tag_list(void);
 
+// 标签列表（含每个标签的文件计数）。
+char *db_tag_counts(void);
+
+// 重命名标签。
+char *db_tag_rename(int tag_id, const char *name);
+
 // 新建标签。返回标签 JSON。
 char *db_tag_create(const char *name, const char *color);
 

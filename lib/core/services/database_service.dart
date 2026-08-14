@@ -62,6 +62,10 @@ class DatabaseService {
 
   List<Map<String, dynamic>> tags() => _db.tagList();
 
+  List<Map<String, dynamic>> tagCounts() => _db.tagCounts();
+
+  String? renameTag(int tagId, String name) => _db.tagRename(tagId, name);
+
   Map<String, dynamic>? createTag(String name, [String color = '']) =>
       _db.tagCreate(name, color);
 

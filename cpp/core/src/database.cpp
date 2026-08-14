@@ -353,12 +353,62 @@ char *db_rename(int file_id, const char *name) {
 }
 
 char *db_delete(int file_id) {
+    // 先取内部路径，删除磁盘副本（仅文件，非目录）
+    sqlite3_stmt *sel;
+    std::string ipath;
+    if (sqlite3_prepare_v2(g_db, "SELECT internal_path,is_dir FROM files WHERE id=?", -1, &sel, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(sel, 1, file_id);
+        if (sqlite3_step(sel) == SQLITE_ROW) {
+            const unsigned char *p = sqlite3_column_text(sel, 0);
+            int is_dir = sqlite3_column_int(sel, 1);
+            if (p && !is_dir) ipath = (const char*)p;
+        }
+        sqlite3_finalize(sel);
+    }
+    if (!ipath.empty()) {
+        try { fs::remove(ipath); } catch (...) {}
+    }
     sqlite3_stmt *st;
     if (sqlite3_prepare_v2(g_db, "UPDATE files SET deleted=1 WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
         sqlite3_bind_int64(st, 1, file_id);
         sqlite3_step(st); sqlite3_finalize(st);
     }
     return strdup("{\"error\":\"\"}");
+}
+
+char *db_tag_rename(int tag_id, const char *name) {
+    if (!name || !*name) return strdup("{\"error\":\"empty name\"}");
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "UPDATE tags SET name=? WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, name, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(st, 2, tag_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
+    return strdup("{\"error\":\"\"}");
+}
+
+char *db_tag_counts(void) {
+    JsonBuilder jb = jb_new();
+    jb_append_str(&jb, "{\"error\":\"\",\"items\":[");
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db,
+            "SELECT t.id,t.name,t.color,COUNT(ft.file_id) AS cnt FROM tags t"
+            " LEFT JOIN file_tags ft ON ft.tag_id=t.id GROUP BY t.id ORDER BY t.name",
+            -1, &st, nullptr) == SQLITE_OK) {
+        bool first = true;
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            if (!first) jb_append_str(&jb, ",");
+            first = false;
+            jb_append_str(&jb, "{\"id\":"); jb_append_int(&jb, sqlite3_column_int64(st, 0));
+            jb_append_str(&jb, ",\"name\":"); jb_append_esc(&jb, (const char*)sqlite3_column_text(st, 1));
+            jb_append_str(&jb, ",\"color\":"); jb_append_esc(&jb, (const char*)sqlite3_column_text(st, 2));
+            jb_append_str(&jb, ",\"count\":"); jb_append_int(&jb, sqlite3_column_int64(st, 3));
+            jb_append_str(&jb, "}");
+        }
+        sqlite3_finalize(st);
+    }
+    jb_append_str(&jb, "]}");
+    return jb_finish(&jb);
 }
 
 char *db_tag_list(void) {

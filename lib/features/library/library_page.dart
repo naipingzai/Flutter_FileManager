@@ -37,6 +37,7 @@ class _LibraryPageState extends State<LibraryPage> {
   bool _selecting = false;
   bool _searching = false;
   bool _grid = false;
+  _SortMode _sort = _SortMode.name;
   final TextEditingController _searchCtrl = TextEditingController();
 
   @override
@@ -53,7 +54,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   void _load() {
     setState(() {
-      _tags = _db.tags();
+      _tags = _db.tagCounts().isEmpty ? _db.tags() : _db.tagCounts();
       final q = _searchCtrl.text.trim();
       if (_searching && q.isNotEmpty) {
         _files = _db.search(q);
@@ -61,6 +62,20 @@ class _LibraryPageState extends State<LibraryPage> {
         _files = _db.filesByTag(_filterTagId!);
       } else {
         _files = _db.listFiles(_currentParent);
+      }
+      _sortFiles();
+    });
+  }
+
+  void _sortFiles() {
+    _files.sort((a, b) {
+      switch (_sort) {
+        case _SortMode.size:
+          return ((b['size'] ?? 0) as int).compareTo((a['size'] ?? 0) as int);
+        case _SortMode.time:
+          return ((b['importTime'] ?? 0) as int).compareTo((a['importTime'] ?? 0) as int);
+        case _SortMode.name:
+          return (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString());
       }
     });
   }
@@ -370,6 +385,31 @@ class _LibraryPageState extends State<LibraryPage> {
             tooltip: _grid ? '列表视图' : '网格视图',
             onPressed: () => setState(() => _grid = !_grid),
           ),
+          PopupMenuButton<_SortMode>(
+            icon: const Icon(Icons.sort),
+            tooltip: '排序',
+            onSelected: (m) => setState(() {
+              _sort = m;
+              _sortFiles();
+            }),
+            itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: _SortMode.name,
+                checked: _sort == _SortMode.name,
+                child: const Text('按名称'),
+              ),
+              CheckedPopupMenuItem(
+                value: _SortMode.size,
+                checked: _sort == _SortMode.size,
+                child: const Text('按大小'),
+              ),
+              CheckedPopupMenuItem(
+                value: _SortMode.time,
+                checked: _sort == _SortMode.time,
+                child: const Text('按导入时间'),
+              ),
+            ],
+          ),
           IconButton(icon: const Icon(Icons.add), tooltip: '导入文件', onPressed: _import),
           IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: '新建目录', onPressed: _mkdir),
           IconButton(icon: const Icon(Icons.new_label_outlined), tooltip: '新建标签', onPressed: _createTag),
@@ -416,9 +456,11 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _tagChip(dynamic id, String name, bool selected, {Map<String, dynamic>? tag}) {
     final color = _colorOf(tag?['color']);
+    final count = tag?['count'];
+    final label = count != null ? '$name($count)' : name;
     final chip = ChoiceChip(
       avatar: color != null ? CircleAvatar(backgroundColor: color, radius: 6) : null,
-      label: Text(name),
+      label: Text(label),
       selected: selected,
       onSelected: (_) {
         setState(() {
@@ -433,10 +475,56 @@ class _LibraryPageState extends State<LibraryPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: GestureDetector(
-        onLongPress: () => _deleteTag(tag),
+        onLongPress: () => _tagMenu(tag),
         child: chip,
       ),
     );
+  }
+
+  Future<void> _tagMenu(Map<String, dynamic> tag) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('重命名标签'),
+              onTap: () => Navigator.pop(ctx, 'rename'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('删除标签'),
+              onTap: () => Navigator.pop(ctx, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == 'rename') {
+      await _renameTag(tag);
+    } else if (action == 'delete') {
+      await _deleteTag(tag);
+    }
+  }
+
+  Future<void> _renameTag(Map<String, dynamic> tag) async {
+    final ctrl = TextEditingController(text: tag['name'].toString());
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重命名标签'),
+        content: TextField(controller: ctrl, autofocus: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('确定')),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      _db.renameTag(tag['id'] as int, name);
+      _load();
+    }
   }
 
   Widget _buildFileList() {
@@ -902,3 +990,5 @@ class _ThumbnailImageState extends State<ThumbnailImage> {
     return RawImage(image: _image, fit: BoxFit.cover);
   }
 }
+
+enum _SortMode { name, size, time }

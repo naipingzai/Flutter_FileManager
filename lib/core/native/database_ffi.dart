@@ -44,6 +44,14 @@ typedef DbDeleteDart = Pointer<Utf8> Function(int);
 typedef DbTagListNative = Pointer<Utf8> Function();
 typedef DbTagListDart = Pointer<Utf8> Function();
 
+// char* db_tag_counts(void)
+typedef DbTagCountsNative = Pointer<Utf8> Function();
+typedef DbTagCountsDart = Pointer<Utf8> Function();
+
+// char* db_tag_rename(int tag_id, const char* name)
+typedef DbTagRenameNative = Pointer<Utf8> Function(Int32, Pointer<Utf8>);
+typedef DbTagRenameDart = Pointer<Utf8> Function(int, Pointer<Utf8>);
+
 // char* db_tag_create(const char* name, const char* color)
 typedef DbTagCreateNative = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
 typedef DbTagCreateDart = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
@@ -87,6 +95,8 @@ class DatabaseNative {
   late final DbRenameDart dbRename;
   late final DbDeleteDart dbDelete;
   late final DbTagListDart dbTagList;
+  late final DbTagCountsDart dbTagCounts;
+  late final DbTagRenameDart dbTagRename;
   late final DbTagCreateDart dbTagCreate;
   late final DbTagAddDart dbTagAddToFiles;
   late final DbTagRemoveDart dbTagRemoveFromFile;
@@ -116,6 +126,8 @@ class DatabaseNative {
     dbRename = _lib.lookupFunction<DbRenameNative, DbRenameDart>('db_rename');
     dbDelete = _lib.lookupFunction<DbDeleteNative, DbDeleteDart>('db_delete');
     dbTagList = _lib.lookupFunction<DbTagListNative, DbTagListDart>('db_tag_list');
+    dbTagCounts = _lib.lookupFunction<DbTagCountsNative, DbTagCountsDart>('db_tag_counts');
+    dbTagRename = _lib.lookupFunction<DbTagRenameNative, DbTagRenameDart>('db_tag_rename');
     dbTagCreate = _lib.lookupFunction<DbTagCreateNative, DbTagCreateDart>('db_tag_create');
     dbTagAddToFiles =
         _lib.lookupFunction<DbTagAddNative, DbTagAddDart>('db_tag_add_to_files');
@@ -215,6 +227,21 @@ class DatabaseNative {
     final j = _call(() => dbTagList());
     if (_err(j) != null) return [];
     return ((j?['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+  }
+
+  List<Map<String, dynamic>> tagCounts() {
+    final j = _call(() => dbTagCounts());
+    if (_err(j) != null) return [];
+    return ((j?['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+  }
+
+  String? tagRename(int tagId, String name) {
+    final np = name.toNativeUtf8();
+    try {
+      return _err(_call(() => dbTagRename(tagId, np)));
+    } finally {
+      malloc.free(np);
+    }
   }
 
   Map<String, dynamic>? tagCreate(String name, [String color = '']) {
