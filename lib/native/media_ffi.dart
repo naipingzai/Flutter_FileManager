@@ -156,12 +156,19 @@ class MediaNative {
   // ---------- 视频操作（FFmpeg） ----------
 
   /// 从文件字节打开视频，返回 handle（null 表示失败）
+  /// 注意：C++ 的 media_video_open 会保存该字节缓冲的指针供后续解码使用，
+  /// 因此必须保证缓冲在 handle 存活期间不被释放，并在 closeVideo 时释放。
+  final Map<Pointer<Void>, Pointer<Uint8>> _videoBuffers = {};
+
   Pointer<Void>? openVideoFromBytes(Uint8List data) {
     final ptr = malloc<Uint8>(data.length);
     ptr.asTypedList(data.length).setAll(0, data);
     final handle = videoOpen(ptr, data.length);
-    malloc.free(ptr);
-    if (handle == nullptr) return null;
+    if (handle == nullptr) {
+      malloc.free(ptr);
+      return null;
+    }
+    _videoBuffers[handle] = ptr;
     return handle;
   }
 
@@ -212,6 +219,9 @@ class MediaNative {
   /// 关闭视频
   void closeVideo(Pointer<Void> handle) {
     videoClose(handle);
+    // 释放与 handle 关联的字节缓冲（C++ 解码期间一直引用它）
+    final buf = _videoBuffers.remove(handle);
+    if (buf != null) malloc.free(buf);
   }
 
   // ---------- 音频操作（FFmpeg） ----------

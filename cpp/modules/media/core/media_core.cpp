@@ -715,10 +715,15 @@ char *media_decode_audio(const unsigned char *data, int len) {
     SwrContext *swr = swr_alloc();
     if (!swr) { avcodec_free_context(&actx); media_video_close(m); return strdup_std("{\"error\":\"swr alloc\",\"base64\":\"\",\"sample_rate\":0,\"channels\":0,\"bits\":0,\"length\":0}"); }
 #if MEDIA_HAS_CHLAYOUT
-    av_opt_set_chlayout(swr, "in_channel_layout", &actx->ch_layout, 0);
+    // FFmpeg 7.x：swr 输入/输出布局选项为 ichl/ochl（in_channel_layout 已失效），
+    // 用声道数推导合法布局，避免 actx->ch_layout 无效导致 swr_init 失败
+    AVChannelLayout in_layout;
+    av_channel_layout_default(&in_layout, out_ch);
+    av_opt_set_chlayout(swr, "ichl", &in_layout, 0);
+    av_channel_layout_uninit(&in_layout);
     AVChannelLayout out_layout;
     av_channel_layout_default(&out_layout, out_ch);
-    av_opt_set_chlayout(swr, "out_channel_layout", &out_layout, 0);
+    av_opt_set_chlayout(swr, "ochl", &out_layout, 0);
     av_channel_layout_uninit(&out_layout);
 #else
     int64_t in_layout = actx->channel_layout;
