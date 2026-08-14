@@ -39,6 +39,11 @@ class DatabaseService {
     return _db.listFiles(parentId);
   }
 
+  List<Map<String, dynamic>> search(String query) {
+    init();
+    return _db.search(query);
+  }
+
   List<Map<String, dynamic>> listAll() {
     init();
     return _db.listAll();

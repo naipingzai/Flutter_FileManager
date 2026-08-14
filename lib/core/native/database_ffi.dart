@@ -20,6 +20,10 @@ typedef DbListDart = Pointer<Utf8> Function(int);
 typedef DbListAllNative = Pointer<Utf8> Function();
 typedef DbListAllDart = Pointer<Utf8> Function();
 
+// char* db_search(const char* query)
+typedef DbSearchNative = Pointer<Utf8> Function(Pointer<Utf8>);
+typedef DbSearchDart = Pointer<Utf8> Function(Pointer<Utf8>);
+
 // char* db_mkdir(const char* name, int parent_id)
 typedef DbMkdirNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
 typedef DbMkdirDart = Pointer<Utf8> Function(Pointer<Utf8>, int);
@@ -77,6 +81,7 @@ class DatabaseNative {
   late final DbImportDart dbImportFile;
   late final DbListDart dbListFiles;
   late final DbListAllDart dbListAll;
+  late final DbSearchDart dbSearch;
   late final DbMkdirDart dbMkdir;
   late final DbMoveDart dbMove;
   late final DbRenameDart dbRename;
@@ -105,6 +110,7 @@ class DatabaseNative {
     dbImportFile = _lib.lookupFunction<DbImportNative, DbImportDart>('db_import_file');
     dbListFiles = _lib.lookupFunction<DbListNative, DbListDart>('db_list_files');
     dbListAll = _lib.lookupFunction<DbListAllNative, DbListAllDart>('db_list_all');
+    dbSearch = _lib.lookupFunction<DbSearchNative, DbSearchDart>('db_search');
     dbMkdir = _lib.lookupFunction<DbMkdirNative, DbMkdirDart>('db_mkdir');
     dbMove = _lib.lookupFunction<DbMoveNative, DbMoveDart>('db_move');
     dbRename = _lib.lookupFunction<DbRenameNative, DbRenameDart>('db_rename');
@@ -162,6 +168,17 @@ class DatabaseNative {
     final j = _call(() => dbListFiles(parentId));
     if (_err(j) != null) return [];
     return ((j?['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+  }
+
+  List<Map<String, dynamic>> search(String query) {
+    final qp = query.toNativeUtf8();
+    try {
+      final j = _call(() => dbSearch(qp));
+      if (_err(j) != null) return [];
+      return ((j?['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+    } finally {
+      malloc.free(qp);
+    }
   }
 
   List<Map<String, dynamic>> listAll() {

@@ -30,6 +30,9 @@ class _LibraryPageState extends State<LibraryPage> {
 
   final Set<int> _selected = {};
   bool _selecting = false;
+  bool _searching = false;
+  bool _grid = false;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -37,10 +40,23 @@ class _LibraryPageState extends State<LibraryPage> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   void _load() {
     setState(() {
       _tags = _db.tags();
-      _files = _filterTagId == null ? _db.listFiles(_currentParent) : _db.filesByTag(_filterTagId!);
+      final q = _searchCtrl.text.trim();
+      if (_searching && q.isNotEmpty) {
+        _files = _db.search(q);
+      } else if (_filterTagId != null) {
+        _files = _db.filesByTag(_filterTagId!);
+      } else {
+        _files = _db.listFiles(_currentParent);
+      }
     });
   }
 
@@ -185,6 +201,32 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
+  Future<void> _removeTagsFromSelected() async {
+    if (_selected.isEmpty) return;
+    final selected = _selected.toList();
+    // 取选中文件共同的标签
+    final common = _db.fileTags(selected.first).map((t) => t['id'] as int).toSet();
+    for (final id in selected.skip(1)) {
+      final t = _db.fileTags(id).map((t) => t['id'] as int).toSet();
+      common.retainAll(t);
+    }
+    final allTags = _db.tags();
+    final chosen = await showDialog<Set<int>>(
+      context: context,
+      builder: (ctx) => _TagPickerDialog(tags: allTags, preselected: common),
+    );
+    if (chosen != null && chosen.isNotEmpty) {
+      for (final id in selected) {
+        for (final tid in chosen) {
+          _db.removeTagFromFile(id, tid);
+        }
+      }
+      _snack('已从 ${selected.length} 个文件移除标签');
+      setState(() => _selected.clear());
+      _load();
+    }
+  }
+
   // ---------- 文件操作 ----------
   Future<void> _renameFile(int id, String oldName) async {
     final ctrl = TextEditingController(text: oldName);
@@ -287,11 +329,42 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_filterTagId != null ? '标签: ${_tagName(_filterTagId)}' : _currentPathText),
-        leading: _pathStack.isNotEmpty
-            ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
-            : null,
+        title: _searching
+            ? TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: '搜索库内文件...', border: InputBorder.none),
+                onChanged: (_) => _load(),
+              )
+            : Text(_filterTagId != null ? '标签: ${_tagName(_filterTagId)}' : _currentPathText),
+        leading: _searching
+            ? IconButton(icon: const Icon(Icons.close), onPressed: () {
+                setState(() {
+                  _searching = false;
+                  _searchCtrl.clear();
+                });
+                _load();
+              })
+            : (_pathStack.isNotEmpty
+                ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
+                : null),
         actions: [
+          IconButton(
+            icon: Icon(_searching ? Icons.search_off : Icons.search),
+            tooltip: '搜索',
+            onPressed: () => setState(() {
+              _searching = !_searching;
+              if (!_searching) {
+                _searchCtrl.clear();
+                _load();
+              }
+            }),
+          ),
+          IconButton(
+            icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
+            tooltip: _grid ? '列表视图' : '网格视图',
+            onPressed: () => setState(() => _grid = !_grid),
+          ),
           IconButton(icon: const Icon(Icons.add), tooltip: '导入文件', onPressed: _import),
           IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: '新建目录', onPressed: _mkdir),
           IconButton(icon: const Icon(Icons.new_label_outlined), tooltip: '新建标签', onPressed: _createTag),
@@ -365,66 +438,144 @@ class _LibraryPageState extends State<LibraryPage> {
     if (_files.isEmpty) {
       return const Center(child: Text('暂无内容，点右上角导入或新建目录'));
     }
+    if (_grid) {
+      return GridView.builder(
+        padding: const EdgeInsets.all(8),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 140,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 0.9,
+        ),
+        itemCount: _files.length,
+        itemBuilder: (ctx, i) => _buildGridTile(_files[i]),
+      );
+    }
     return ListView.builder(
       itemCount: _files.length,
-      itemBuilder: (ctx, i) {
-        final f = _files[i];
-        final id = f['id'] as int;
-        final isDir = (f['isDir'] ?? 0) == 1;
-        final isSel = _selected.contains(id);
-        final tags = (f['tags'] as List?) ?? [];
-        final title = Text(f['name'].toString());
-        final subtitle = Wrap(
-          spacing: 4,
-          runSpacing: 2,
+      itemBuilder: (ctx, i) => _buildListTile(_files[i]),
+    );
+  }
+
+  Widget _buildListTile(Map<String, dynamic> f) {
+    final id = f['id'] as int;
+    final isDir = (f['isDir'] ?? 0) == 1;
+    final isSel = _selected.contains(id);
+    final tags = (f['tags'] as List?) ?? [];
+    final subtitle = Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      children: [
+        if ((f['size'] ?? 0) > 0)
+          Text(_size(f['size']), style: const TextStyle(fontSize: 11)),
+        for (final t in tags)
+          Chip(
+            avatar: _colorOf(t['color']) != null
+                ? CircleAvatar(backgroundColor: _colorOf(t['color']), radius: 5)
+                : null,
+            label: Text(t['name'].toString()),
+            labelStyle: const TextStyle(fontSize: 11),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+      ],
+    );
+    final trailing = _selecting || isSel
+        ? Icon(isSel ? Icons.check_circle : Icons.circle_outlined,
+            color: isSel ? Colors.blue : Colors.grey)
+        : (!isDir
+            ? IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => _onFileMenu(f),
+              )
+            : null);
+
+    return ListTile(
+      leading: Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 32),
+      title: Text(f['name'].toString()),
+      subtitle: subtitle,
+      trailing: trailing,
+      selected: isSel,
+      onLongPress: () => setState(() {
+        _selecting = true;
+        _toggleSelect(id);
+      }),
+      onTap: () => _onTileTap(f, isDir, id),
+    );
+  }
+
+  Widget _buildGridTile(Map<String, dynamic> f) {
+    final id = f['id'] as int;
+    final isDir = (f['isDir'] ?? 0) == 1;
+    final isSel = _selected.contains(id);
+    final tags = (f['tags'] as List?) ?? [];
+    return InkWell(
+      onLongPress: () => setState(() {
+        _selecting = true;
+        _toggleSelect(id);
+      }),
+      onTap: () => _onTileTap(f, isDir, id),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+          border: isSel ? Border.all(color: Colors.blue, width: 2) : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if ((f['size'] ?? 0) > 0)
-              Text(_size(f['size']), style: const TextStyle(fontSize: 11)),
-            for (final t in tags)
-              Chip(
-                avatar: _colorOf(t['color']) != null
-                    ? CircleAvatar(backgroundColor: _colorOf(t['color']), radius: 5)
-                    : null,
-                label: Text(t['name'].toString()),
-                labelStyle: const TextStyle(fontSize: 11),
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            Stack(
+              children: [
+                Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 44, color: Colors.grey[700]),
+                if (isSel)
+                  const Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Icon(Icons.check_circle, color: Colors.blue),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                f['name'].toString(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+            if (tags.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (final t in tags.take(3))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 1),
+                        child: CircleAvatar(
+                          radius: 3,
+                          backgroundColor: _colorOf(t['color']) ?? Colors.grey,
+                        ),
+                      ),
+                  ],
+                ),
               ),
           ],
-        );
-        final leading = Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 32);
-        final trailing = _selecting || isSel
-            ? Icon(isSel ? Icons.check_circle : Icons.circle_outlined,
-                color: isSel ? Colors.blue : Colors.grey)
-            : (!isDir
-                ? IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    onPressed: () => _onFileMenu(f),
-                  )
-                : null);
-
-        return ListTile(
-          leading: leading,
-          title: title,
-          subtitle: subtitle,
-          trailing: trailing,
-          selected: isSel,
-          onLongPress: () => setState(() {
-            _selecting = true;
-            _toggleSelect(id);
-          }),
-          onTap: () {
-            if (_selecting) {
-              setState(() => _toggleSelect(id));
-            } else if (isDir) {
-              _enterDir(f);
-            } else {
-              _preview(f);
-            }
-          },
-        );
-      },
+        ),
+      ),
     );
+  }
+
+  void _onTileTap(Map<String, dynamic> f, bool isDir, int id) {
+    if (_selecting) {
+      setState(() => _toggleSelect(id));
+    } else if (isDir) {
+      _enterDir(f);
+    } else {
+      _preview(f);
+    }
   }
 
   void _onFileMenu(Map<String, dynamic> f) {
@@ -530,6 +681,7 @@ class _LibraryPageState extends State<LibraryPage> {
               child: Text('${_selected.length} 已选'),
             ),
             IconButton(icon: const Icon(Icons.sell_outlined), tooltip: '加标签', onPressed: _addTagsToSelected),
+            IconButton(icon: const Icon(Icons.sell), tooltip: '移除标签', onPressed: _removeTagsFromSelected),
             IconButton(icon: const Icon(Icons.drive_file_move_outlined), tooltip: '移动', onPressed: () => _moveToFolder(_selected.toList())),
             IconButton(icon: const Icon(Icons.delete_outline), tooltip: '删除', onPressed: () => _deleteFiles(_selected.toList())),
             IconButton(icon: const Icon(Icons.close), tooltip: '取消', onPressed: () => setState(() {
@@ -602,14 +754,15 @@ class _LibraryPageState extends State<LibraryPage> {
 /// 多选标签对话框
 class _TagPickerDialog extends StatefulWidget {
   final List<Map<String, dynamic>> tags;
-  const _TagPickerDialog({required this.tags});
+  final Set<int> preselected;
+  const _TagPickerDialog({required this.tags, this.preselected = const {}});
 
   @override
   State<_TagPickerDialog> createState() => _TagPickerDialogState();
 }
 
 class _TagPickerDialogState extends State<_TagPickerDialog> {
-  final Set<int> _chosen = {};
+  late final Set<int> _chosen = {...widget.preselected};
 
   @override
   Widget build(BuildContext context) {

@@ -287,6 +287,34 @@ char *db_list_files(int parent_id) {
 
 char *db_list_all(void) { return db_list_files(-1); }
 
+char *db_search(const char *query) {
+    if (!query || !*query) return db_list_files(-1);
+    // 转义 LIKE 特殊字符
+    std::string esc;
+    for (const char *p = query; *p; p++) {
+        if (*p == '\\' || *p == '%' || *p == '_') esc += '\\';
+        esc += *p;
+    }
+    std::string like = "%" + esc + "%";
+    sqlite3_stmt *st;
+    JsonBuilder jb = jb_new();
+    jb_append_str(&jb, "{\"error\":\"\",\"items\":[");
+    if (sqlite3_prepare_v2(g_db,
+            "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted"
+            " FROM files WHERE deleted=0 AND name LIKE ? ESCAPE '\\'", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, like.c_str(), -1, SQLITE_TRANSIENT);
+        bool first = true;
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            if (!first) jb_append_str(&jb, ",");
+            first = false;
+            file_row_to_json(&jb, st);
+        }
+        sqlite3_finalize(st);
+    }
+    jb_append_str(&jb, "]}");
+    return jb_finish(&jb);
+}
+
 char *db_mkdir(const char *name, int parent_id) {
     if (!name || !*name) return strdup("{\"error\":\"empty name\"}");
     sqlite3_stmt *st;

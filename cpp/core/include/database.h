@@ -32,6 +32,9 @@ char *db_list_files(int parent_id);
 // 列出全部文件。
 char *db_list_all(void);
 
+// 按名称/扩展名模糊搜索库内文件。
+char *db_search(const char *query);
+
 // 库内新建目录。返回目录记录 JSON。
 char *db_mkdir(const char *name, int parent_id);
 
