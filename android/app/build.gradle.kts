@@ -25,8 +25,9 @@ android {
         versionName = flutter.versionName
 
         // C++ FFI 静态库打包为 libfileops.so
+        // 仅 arm64-v8a（对应依赖仓库 FFmpeg 产物；减少 APK 体积）
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+            abiFilters += listOf("arm64-v8a")
         }
         externalNativeBuild {
             cmake {
