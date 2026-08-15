@@ -28,7 +28,7 @@ class _LibraryPageState extends State<LibraryPage> {
   final DatabaseService _db = DatabaseService();
   List<Map<String, dynamic>> _files = [];
   List<Map<String, dynamic>> _tags = [];
-  int? _filterTagId;
+  int? _activeTagId; // 标签页当前选中查看的标签
 
   // 库内目录导航
   int _currentParent = 0; // 0=根目录
@@ -41,9 +41,8 @@ class _LibraryPageState extends State<LibraryPage> {
   _SortMode _sort = _SortMode.name;
   final TextEditingController _searchCtrl = TextEditingController();
 
-  // 移动端布局：底部导航页 + 类型分类（类型≠标签）
+  // 移动端布局：底部导航页
   int _navIndex = 0; // 0=文件 1=标签 2=更多
-  String _category = '全部'; // 全部/图片/视频/音频/文档/压缩包/最近
   int _gridColumns = 0; // 0=自适应；>0=固定列数（设置可配）
 
   @override
@@ -68,40 +67,16 @@ class _LibraryPageState extends State<LibraryPage> {
     setState(() {
       _tags = _db.tagCounts().isEmpty ? _db.tags() : _db.tagCounts();
       final q = _searchCtrl.text.trim();
-      if (_searching && q.isNotEmpty) {
+      if (_navIndex == 1 && _activeTagId != null) {
+        // 标签页内显示该标签下的文件
+        _files = _db.filesByTag(_activeTagId!);
+      } else if (_searching && q.isNotEmpty) {
         _files = _db.search(q);
-      } else if (_filterTagId != null) {
-        _files = _db.filesByTag(_filterTagId!);
       } else {
         _files = _db.listFiles(_currentParent);
       }
-      // 类型分类过滤（类型≠标签）
-      if (_category != '全部' && _category != '最近') {
-        _files = _files.where((f) => _categoryOf(f['ext']) == _category).toList();
-      } else if (_category == '最近') {
-        _files = _db.listAll()
-            .where((f) => (f['isDir'] ?? 0) == 0)
-            .toList()
-          ..sort((a, b) => ((b['importTime'] ?? 0) as int)
-              .compareTo((a['importTime'] ?? 0) as int));
-      }
       _sortFiles();
     });
-  }
-
-  String _categoryOf(String? ext) {
-    final e = (ext ?? '').toLowerCase();
-    const img = {'png','jpg','jpeg','gif','webp','bmp','tiff','ico','heic','avif'};
-    const vid = {'mp4','mkv','mov','webm','avi','flv','3gp','m4v'};
-    const aud = {'mp3','wav','flac','aac','ogg','m4a','opus'};
-    const doc = {'pdf','doc','docx','xls','xlsx','ppt','pptx','odt','ods','csv','txt','md'};
-    const arc = {'zip','7z','rar','tar','gz','bz2'};
-    if (img.contains(e)) return '图片';
-    if (vid.contains(e)) return '视频';
-    if (aud.contains(e)) return '音频';
-    if (doc.contains(e)) return '文档';
-    if (arc.contains(e)) return '压缩包';
-    return '其他';
   }
 
   void _sortFiles() {
@@ -239,7 +214,7 @@ class _LibraryPageState extends State<LibraryPage> {
     );
     if (ok == true) {
       _db.deleteTag(tag['id'] as int);
-      if (_filterTagId == tag['id']) setState(() => _filterTagId = null);
+      if (_activeTagId == tag['id']) setState(() => _activeTagId = null);
       _load();
     }
   }
@@ -377,7 +352,7 @@ class _LibraryPageState extends State<LibraryPage> {
     setState(() {
       _pathStack.add((id: dir['id'] as int, name: dir['name'].toString()));
       _currentParent = dir['id'] as int;
-      _filterTagId = null;
+      _activeTagId = null;
     });
     _load();
   }
@@ -391,17 +366,9 @@ class _LibraryPageState extends State<LibraryPage> {
     _load();
   }
 
-  /// 清除标签筛选，回到普通目录浏览
-  void _clearTagFilter() {
-    setState(() {
-      _filterTagId = null;
-      _currentParent = _pathStack.isEmpty ? 0 : _pathStack.last.id;
-      _category = '全部';
-      if (_searching) {
-        _searching = false;
-        _searchCtrl.clear();
-      }
-    });
+  /// 退出标签页的文件查看，回到标签列表
+  void _exitTagView() {
+    setState(() => _activeTagId = null);
     _load();
   }
 
@@ -419,13 +386,11 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
                 onChanged: (_) => _load(),
               )
-            : Text(_filterTagId != null
-                ? '标签: ${_tagName(_filterTagId)}'
-                : _navIndex == 0
-                    ? _currentPathText
-                    : _navIndex == 1
-                        ? '标签'
-                        : '更多'),
+            : Text(_navIndex == 0
+                ? _currentPathText
+                : _navIndex == 1
+                    ? (_activeTagId != null ? '标签: ${_tagName(_activeTagId)}' : '标签')
+                    : '更多'),
         leading: _navIndex == 0
             ? (_searching
                 ? IconButton(icon: const Icon(Icons.close), onPressed: () {
@@ -438,15 +403,11 @@ class _LibraryPageState extends State<LibraryPage> {
                 : (_pathStack.isNotEmpty
                     ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
                     : null))
-            : null,
+            : (_navIndex == 1 && _activeTagId != null
+                ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _exitTagView)
+                : null),
         actions: [
           if (_navIndex == 0) ...[
-            if (_filterTagId != null)
-              IconButton(
-                icon: const Icon(Icons.filter_alt_off),
-                tooltip: '清除标签筛选',
-                onPressed: _clearTagFilter,
-              ),
             IconButton(
               icon: Icon(_searching ? Icons.search_off : Icons.search),
               onPressed: () => setState(() {
@@ -490,6 +451,19 @@ class _LibraryPageState extends State<LibraryPage> {
               ],
             ),
           ],
+          if (_navIndex == 1) ...[
+            if (_activeTagId != null)
+              IconButton(
+                icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
+                tooltip: _grid ? '列表视图' : '网格视图',
+                onPressed: () => setState(() => _grid = !_grid),
+              ),
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: '新建标签',
+              onPressed: _createTag,
+            ),
+          ],
         ],
       ),
       body: IndexedStack(
@@ -504,7 +478,10 @@ class _LibraryPageState extends State<LibraryPage> {
           ? _buildSelectionBar()
           : NavigationBar(
               selectedIndex: _navIndex,
-              onDestinationSelected: (i) => setState(() => _navIndex = i),
+              onDestinationSelected: (i) {
+                setState(() => _navIndex = i);
+                _load();
+              },
               destinations: const [
                 NavigationDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder), label: '文件'),
                 NavigationDestination(icon: Icon(Icons.label_outline), selectedIcon: Icon(Icons.label), label: '标签'),
@@ -537,8 +514,6 @@ class _LibraryPageState extends State<LibraryPage> {
             setState(() {
               _pathStack.clear();
               _currentParent = 0;
-              _filterTagId = null;
-              _category = '全部';
             });
             _load();
           }),
@@ -569,30 +544,34 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  /// 标签页（颜色 + 计数 + 点按过滤）
+  /// 标签页：进入显示全部标签列表；点标签在标签页内显示该标签下的文件（可返回）
   Widget _buildTagsTab() {
+    if (_activeTagId != null) {
+      // 在标签页内直接展示该标签的文件，右上角有返回
+      return _buildFileList();
+    }
     final tags = _tags;
+    if (tags.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.label_outline, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(height: 12),
+            Text('还没有标签', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            FilledButton.tonalIcon(
+              onPressed: _createTag,
+              icon: const Icon(Icons.add),
+              label: const Text('新建标签'),
+            ),
+          ],
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Row(
-              children: [
-                Icon(Icons.new_label_outlined, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                const Expanded(child: Text('标签（用户自定义）', style: TextStyle(fontWeight: FontWeight.w600))),
-                TextButton.icon(
-                  onPressed: _createTag,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('新建'),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
         for (final t in tags)
           Card(
             margin: const EdgeInsets.only(bottom: 8),
@@ -607,11 +586,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 ],
               ),
               onTap: () {
-                setState(() {
-                  _filterTagId = t['id'] as int;
-                  _navIndex = 0;
-                  _category = '全部';
-                });
+                setState(() => _activeTagId = t['id'] as int);
                 _load();
               },
             ),
@@ -755,7 +730,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _buildFileList() {
     if (_files.isEmpty) {
-      if (_filterTagId != null) {
+      if (_activeTagId != null) {
         return Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -764,8 +739,8 @@ class _LibraryPageState extends State<LibraryPage> {
               const SizedBox(height: 12),
               const Text('该标签下暂无文件'),
               TextButton(
-                onPressed: _clearTagFilter,
-                child: const Text('清除筛选，查看全部'),
+                onPressed: _exitTagView,
+                child: const Text('返回标签列表'),
               ),
             ],
           ),
