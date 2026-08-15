@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ffi';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
 
@@ -43,6 +46,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   // 否则会触发 “disposed image still in use” 原生崩溃。这里用身份集合保证每帧只释放一次。
   final Set<ui.Image> _pendingDispose = {};
 
+  // 音频播放（复用音频播放器模式：完整解码为 PCM + 平台音频输出 + Timer 分块推送）
+  Uint8List? _audioPcm;
+  Pointer<Void>? _audioOutput;
+  int _audioSampleRate = 0;
+  int _audioChannels = 0;
+  int _audioPos = 0; // 已播放音频字节游标
+  Timer? _audioTimer;
+
   @override
   void initState() {
     super.initState();
@@ -69,11 +80,69 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     }
     // 预分配 RGBA 帧缓冲，供 nextVideoFrameRgba 复用（避免每帧 base64/JSON 往返）
     fs.prepareVideoFrameBuffer(handle);
+    // 解码音轨 + 打开音频输出（无音轨则跳过，不影响视频）
+    _initAudio();
     setState(() => _loading = false);
     // 自动播放（用 post-frame 避免 setState 期间启动 timer）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _handle != null) _play();
     });
+  }
+
+  void _initAudio() {
+    try {
+      final fs = FileService();
+      final result = fs.decodeAudio(widget.path);
+      final b64 = result?['base64'] as String?;
+      if (result == null || b64 == null || b64.isEmpty) return;
+      final rate = (result['sample_rate'] ?? 0) as int;
+      final ch = (result['channels'] ?? 0) as int;
+      final pcm = base64Decode(b64);
+      if (rate <= 0 || ch <= 0 || pcm.isEmpty) return;
+      final out = fs.audioOutputOpen(rate, ch, 16);
+      if (out == null) return;
+      _audioPcm = pcm;
+      _audioSampleRate = rate;
+      _audioChannels = ch;
+      _audioPos = 0;
+      _audioOutput = out;
+    } catch (_) {
+      // 音频解码失败不影响视频播放
+      _audioPcm = null;
+    }
+  }
+
+  /// 每 100ms 把 PCM 分块送入音频输出（与音频播放器一致）。
+  void _pumpAudio() {
+    if (_disposed || _audioPcm == null || _audioOutput == null || !_playing) return;
+    final pcm = _audioPcm!;
+    final frameBytes = _audioSampleRate * _audioChannels * 2 ~/ 10;
+    if (_audioPos >= pcm.length) {
+      _stopAudio();
+      return;
+    }
+    var chunk = frameBytes;
+    if (_audioPos + chunk > pcm.length) chunk = pcm.length - _audioPos;
+    final ptr = malloc<Uint8>(chunk);
+    try {
+      ptr.asTypedList(chunk).setAll(0, pcm.sublist(_audioPos, _audioPos + chunk));
+      final written = FileService().audioOutputWrite(_audioOutput!, ptr, chunk);
+      if (written > 0) {
+        _audioPos += written;
+      }
+    } catch (_) {
+      _stopAudio();
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  void _stopAudio() {
+    _audioTimer?.cancel();
+    _audioTimer = null;
+    if (_audioOutput != null) {
+      FileService().audioOutputStop(_audioOutput!);
+    }
   }
 
   /// 延迟到当前帧绘制结束后再释放旧帧，避免 RawImage 仍在绘制时 dispose 导致崩溃。
@@ -99,11 +168,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     final intervalMs = (1000 / _fps).round().clamp(10, 1000);
     _timer?.cancel();
     _timer = Timer.periodic(Duration(milliseconds: intervalMs), (_) => _nextFrameSafe());
+    // 启动音频播放（若有音轨）
+    if (_audioOutput != null && _audioPcm != null) {
+      _audioTimer?.cancel();
+      _audioTimer = Timer.periodic(const Duration(milliseconds: 100), (_) => _pumpAudio());
+    }
   }
 
   void _pause() {
     _timer?.cancel();
     _timer = null;
+    _stopAudio();
     if (_playing) setState(() => _playing = false);
   }
 
@@ -170,6 +245,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     seconds = seconds.clamp(0.0, _duration > 0 ? _duration : seconds);
     final fs = FileService();
     fs.seekVideo(_handle!, seconds);
+    // 同步音频游标到对应位置
+    if (_audioPcm != null && _audioSampleRate > 0 && _audioChannels > 0) {
+      _audioPos = (seconds * _audioSampleRate * _audioChannels * 2).round();
+      if (_audioPos > _audioPcm!.length) _audioPos = _audioPcm!.length;
+    }
     setState(() {
       _currentTime = seconds;
       _eof = false;
@@ -193,6 +273,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     // 关键：在 dispose 时设标记，让 timer 回调退出
     _disposed = true;
     _timer?.cancel();
+    _audioTimer?.cancel();
+    _audioTimer = null;
+    final out = _audioOutput;
+    _audioOutput = null;
+    if (out != null) {
+      FileService().audioOutputClose(out);
+    }
     final h = _handle;
     _handle = null;
     if (h != null) {
