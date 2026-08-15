@@ -8,6 +8,8 @@ import 'package:flutter_file_manager/core/native/media_ffi.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
 import 'package:flutter_file_manager/core/services/settings_service.dart';
+import 'package:flutter_file_manager/features/legacy/about/about_page.dart';
+import 'package:flutter_file_manager/features/library/settings_page.dart';
 import 'package:flutter_file_manager/features/viewer/audio/audio_player_page.dart';
 import 'package:flutter_file_manager/features/viewer/csv/csv_viewer_page.dart';
 import 'package:flutter_file_manager/features/viewer/ebook/ebook_viewer_page.dart';
@@ -29,6 +31,8 @@ class _LibraryPageState extends State<LibraryPage> {
   List<Map<String, dynamic>> _files = [];
   List<Map<String, dynamic>> _tags = [];
   int? _activeTagId; // 标签页当前选中查看的标签
+  int? _filterTagId; // 文件页按标签过滤（抽屉/收藏）
+  bool _recentOnly = false; // 文件页"最近导入"排序视图
 
   // 库内目录导航
   int _currentParent = 0; // 0=根目录
@@ -40,6 +44,8 @@ class _LibraryPageState extends State<LibraryPage> {
   bool _grid = false;
   _SortMode _sort = _SortMode.name;
   final TextEditingController _searchCtrl = TextEditingController();
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // 移动端布局：底部导航页
   int _navIndex = 0; // 0=文件 1=标签 2=更多
@@ -67,7 +73,16 @@ class _LibraryPageState extends State<LibraryPage> {
     setState(() {
       _tags = _db.tagCounts().isEmpty ? _db.tags() : _db.tagCounts();
       final q = _searchCtrl.text.trim();
-      if (_navIndex == 1 && _activeTagId != null) {
+      if (_filterTagId != null) {
+        // 文件页按标签过滤（收藏/抽屉标签）
+        _files = _db.filesByTag(_filterTagId!);
+      } else if (_recentOnly) {
+        _files = _db.listAll()
+            .where((f) => (f['isDir'] ?? 0) == 0)
+            .toList()
+          ..sort((a, b) => ((b['importTime'] ?? 0) as int)
+              .compareTo((a['importTime'] ?? 0) as int));
+      } else if (_navIndex == 1 && _activeTagId != null) {
         // 标签页内显示该标签下的文件
         _files = _db.filesByTag(_activeTagId!);
       } else if (_searching && q.isNotEmpty) {
@@ -105,9 +120,9 @@ class _LibraryPageState extends State<LibraryPage> {
     for (final f in files) {
       final src = f.path;
       if (src.isEmpty) continue;
-      if (_db.importFile(src) != null) ok++;
+      if (_db.importFile(src, defaultTags: const ['已导入']) != null) ok++;
     }
-    _snack('导入完成：$ok/${files.length}');
+    _snack('导入完成：$ok/${files.length}，已打上标签「已导入」');
     _load();
   }
 
@@ -375,97 +390,11 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: _searching
-            ? TextField(
-                controller: _searchCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: '搜索库内文件...',
-                  border: InputBorder.none,
-                ),
-                onChanged: (_) => _load(),
-              )
-            : Text(_navIndex == 0
-                ? _currentPathText
-                : _navIndex == 1
-                    ? (_activeTagId != null ? '标签: ${_tagName(_activeTagId)}' : '标签')
-                    : '更多'),
-        leading: _navIndex == 0
-            ? (_searching
-                ? IconButton(icon: const Icon(Icons.close), onPressed: () {
-                    setState(() {
-                      _searching = false;
-                      _searchCtrl.clear();
-                    });
-                    _load();
-                  })
-                : (_pathStack.isNotEmpty
-                    ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
-                    : null))
-            : (_navIndex == 1 && _activeTagId != null
-                ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _exitTagView)
-                : null),
-        actions: [
-          if (_navIndex == 0) ...[
-            IconButton(
-              icon: Icon(_searching ? Icons.search_off : Icons.search),
-              onPressed: () => setState(() {
-                _searching = !_searching;
-                if (!_searching) {
-                  _searchCtrl.clear();
-                  _load();
-                }
-              }),
-            ),
-            IconButton(
-              icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
-              tooltip: _grid ? '列表视图' : '网格视图',
-              onPressed: () => setState(() => _grid = !_grid),
-            ),
-            PopupMenuButton<_SortMode>(
-              icon: const Icon(Icons.sort),
-              tooltip: '排序',
-              onSelected: (m) => setState(() {
-                _sort = m;
-                _sortFiles();
-              }),
-              itemBuilder: (_) => const [
-                CheckedPopupMenuItem(value: _SortMode.name, child: Text('按名称')),
-                CheckedPopupMenuItem(value: _SortMode.size, child: Text('按大小')),
-                CheckedPopupMenuItem(value: _SortMode.time, child: Text('按导入时间')),
-              ],
-            ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.add),
-              tooltip: '导入',
-              onSelected: (v) {
-                if (v == 'file') _import();
-                if (v == 'dir') _importDir();
-                if (v == 'mkdir') _mkdir();
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'file', child: Text('导入文件')),
-                PopupMenuItem(value: 'dir', child: Text('导入文件夹')),
-                PopupMenuItem(value: 'mkdir', child: Text('新建目录')),
-              ],
-            ),
-          ],
-          if (_navIndex == 1) ...[
-            if (_activeTagId != null)
-              IconButton(
-                icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
-                tooltip: _grid ? '列表视图' : '网格视图',
-                onPressed: () => setState(() => _grid = !_grid),
-              ),
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: '新建标签',
-              onPressed: _createTag,
-            ),
-          ],
-        ],
-      ),
+      key: _scaffoldKey,
+      appBar: _selecting
+          ? _buildMultiSelectToolbar(context)
+          : _buildRegularToolbar(context),
+      drawer: _buildDrawer(context),
       body: IndexedStack(
         index: _navIndex,
         children: [
@@ -474,10 +403,358 @@ class _LibraryPageState extends State<LibraryPage> {
           _buildMoreTab(),
         ],
       ),
-      bottomNavigationBar: _selecting
-          ? _buildSelectionBar()
-          : _buildBottomNav(),
+      bottomNavigationBar: _selecting ? _buildSelectionBar() : _buildBottomNav(),
     );
+  }
+
+  /// 常规顶部工具栏（design_skill 5.2）：标题+副标题、视图/排序、导入、导出、溢出
+  AppBar _buildRegularToolbar(BuildContext context) {
+    final title = _navIndex == 0
+        ? _currentPathText
+        : _navIndex == 1
+            ? (_activeTagId != null ? '标签: ${_tagName(_activeTagId)}' : '标签')
+            : '更多';
+    return AppBar(
+      title: _searching
+          ? TextField(
+              controller: _searchCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: '搜索库内文件...',
+                border: InputBorder.none,
+              ),
+              onChanged: (_) => _load(),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title),
+                if (_navIndex == 0 && !_searching)
+                  Text(
+                    '${_files.length} 项',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+              ],
+            ),
+      leading: _searching
+          ? IconButton(icon: const Icon(Icons.close), onPressed: () {
+              setState(() {
+                _searching = false;
+                _searchCtrl.clear();
+              });
+              _load();
+            })
+          : (_pathStack.isNotEmpty
+              ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
+              : IconButton(icon: const Icon(Icons.menu), onPressed: _openDrawer)),
+      actions: [
+        if (_navIndex == 0) ...[
+          // 右1 视图/排序
+          PopupMenuButton<_ToolbarMenu>(
+            icon: const Icon(Icons.sort),
+            tooltip: '视图/排序',
+            onSelected: (m) {
+              switch (m) {
+                case _ToolbarMenu.viewList:
+                  setState(() => _grid = false);
+                case _ToolbarMenu.viewGrid:
+                  setState(() => _grid = true);
+                case _ToolbarMenu.sortName:
+                  setState(() { _sort = _SortMode.name; _sortFiles(); });
+                case _ToolbarMenu.sortSize:
+                  setState(() { _sort = _SortMode.size; _sortFiles(); });
+                case _ToolbarMenu.sortTime:
+                  setState(() { _sort = _SortMode.time; _sortFiles(); });
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: _ToolbarMenu.viewList,
+                child: Row(children: [
+                  Icon(Icons.view_list, size: 20),
+                  SizedBox(width: 12),
+                  Text('列表'),
+                ]),
+              ),
+              const PopupMenuItem(
+                value: _ToolbarMenu.viewGrid,
+                child: Row(children: [
+                  Icon(Icons.grid_view, size: 20),
+                  SizedBox(width: 12),
+                  Text('网格'),
+                ]),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: _ToolbarMenu.sortName,
+                child: Row(children: [
+                  Icon(Icons.sort_by_alpha, size: 20),
+                  SizedBox(width: 12),
+                  Text('按名称'),
+                ]),
+              ),
+              const PopupMenuItem(
+                value: _ToolbarMenu.sortSize,
+                child: Row(children: [
+                  Icon(Icons.sell_outlined, size: 20),
+                  SizedBox(width: 12),
+                  Text('按大小'),
+                ]),
+              ),
+              const PopupMenuItem(
+                value: _ToolbarMenu.sortTime,
+                child: Row(children: [
+                  Icon(Icons.schedule, size: 20),
+                  SizedBox(width: 12),
+                  Text('按导入时间'),
+                ]),
+              ),
+            ],
+          ),
+          // 右2 导入（design_skill 5.2 新增常驻按钮）
+          IconButton(
+            icon: const Icon(Icons.download_outlined),
+            tooltip: '导入文件',
+            onPressed: _import,
+          ),
+          // 右3 导出（design_skill 5.2 新增常驻按钮）
+          IconButton(
+            icon: const Icon(Icons.upload_outlined),
+            tooltip: '导出选中',
+            onPressed: () {
+              if (_selected.isEmpty) {
+                _snack('请先长按选择要导出的文件');
+              } else {
+                _exportFiles(_selected.toList());
+              }
+            },
+          ),
+          // 搜索
+          IconButton(
+            icon: Icon(_searching ? Icons.search_off : Icons.search),
+            onPressed: () => setState(() {
+              _searching = !_searching;
+              if (!_searching) {
+                _searchCtrl.clear();
+                _load();
+              }
+            }),
+          ),
+          // 溢出菜单（design_skill 5.6）
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              switch (v) {
+                case 'dir':
+                  _importDir();
+                case 'mkdir':
+                  _mkdir();
+                case 'tagsearch':
+                  _openTagSearch();
+                case 'settings':
+                  _openSettings();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'dir', child: Text('导入文件夹')),
+              PopupMenuItem(value: 'mkdir', child: Text('新建文件夹')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'tagsearch', child: Text('标签搜索')),
+              PopupMenuItem(value: 'settings', child: Text('设置')),
+            ],
+          ),
+        ] else if (_navIndex == 1) ...[
+          if (_activeTagId != null)
+            IconButton(
+              icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
+              tooltip: _grid ? '列表视图' : '网格视图',
+              onPressed: () => setState(() => _grid = !_grid),
+            ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: '新建标签',
+            onPressed: _createTag,
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 多选工具栏（design_skill 6.7）：淡入覆盖常规工具栏
+  AppBar _buildMultiSelectToolbar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return AppBar(
+      title: Text('已选择 ${_selected.length} 项'),
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: () => setState(() {
+          _selecting = false;
+          _selected.clear();
+        }),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.label_outline),
+          tooltip: '打标签',
+          onPressed: _addTagsToSelected,
+        ),
+        IconButton(
+          icon: const Icon(Icons.upload_outlined),
+          tooltip: '导出',
+          onPressed: () => _exportFiles(_selected.toList()),
+        ),
+        IconButton(
+          icon: const Icon(Icons.select_all),
+          tooltip: '全选',
+          onPressed: () {
+            setState(() {
+              for (final f in _files) {
+                _selected.add(f['id'] as int);
+              }
+            });
+          },
+        ),
+        IconButton(
+          icon: Icon(Icons.delete_outline, color: cs.error),
+          tooltip: '删除',
+          onPressed: () => _deleteFiles(_selected.toList()),
+        ),
+      ],
+    );
+  }
+
+  void _openDrawer() {
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  /// 侧边抽屉导航（design_skill 12）
+  Widget _buildDrawer(BuildContext context) {
+    final actions = <({IconData icon, String label, void Function() onTap})>[
+      (icon: Icons.folder_outlined, label: '全部文件', onTap: () => _goAllFiles()),
+      (icon: Icons.schedule, label: '最近导入', onTap: () => _goRecent()),
+      (icon: Icons.star_outline, label: '收藏', onTap: () => _goFavorite()),
+    ];
+    final tagActions = [
+      for (final t in _tags)
+        (icon: Icons.label_outline, label: t['name'].toString(), onTap: () => _goTagFiles(t['id'] as int)),
+    ];
+    final menuActions = <({IconData icon, String label, void Function() onTap})>[
+      (icon: Icons.label, label: '标签管理', onTap: () => _goTagManage()),
+      (icon: Icons.settings_outlined, label: '设置', onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+      }),
+      (icon: Icons.info_outline, label: '关于', onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()));
+      }),
+    ];
+
+    return NavigationDrawer(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 20, 28, 8),
+          child: Text('文件库', style: Theme.of(context).textTheme.titleLarge),
+        ),
+        const Divider(),
+        _drawerSection('库'),
+        for (final a in actions) _drawerTile(a),
+        if (tagActions.isNotEmpty) _drawerSection('标签'),
+        for (final a in tagActions) _drawerTile(a),
+        _drawerSection('菜单'),
+        for (final a in menuActions) _drawerTile(a),
+      ],
+    );
+  }
+
+  Widget _drawerSection(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 12, 28, 4),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+      ),
+    );
+  }
+
+  Widget _drawerTile(({IconData icon, String label, void Function() onTap}) a) {
+    return ListTile(
+      leading: Icon(a.icon),
+      title: Text(a.label),
+      onTap: () {
+        Navigator.pop(context);
+        a.onTap();
+      },
+    );
+  }
+
+  void _goAllFiles() {
+    setState(() {
+      _navIndex = 0;
+      _pathStack.clear();
+      _currentParent = 0;
+      _filterTagId = null;
+      _recentOnly = false;
+      _activeTagId = null;
+    });
+    _load();
+  }
+
+  void _goRecent() {
+    setState(() {
+      _navIndex = 0;
+      _pathStack.clear();
+      _currentParent = 0;
+      _filterTagId = null;
+      _recentOnly = true;
+      _activeTagId = null;
+    });
+    _load();
+  }
+
+  void _goFavorite() {
+    // 收藏 = 按"收藏"标签过滤
+    final fav = _db.tags().where((t) => t['name'] == '收藏').toList();
+    setState(() {
+      _navIndex = 0;
+      _pathStack.clear();
+      _currentParent = 0;
+      _recentOnly = false;
+      _activeTagId = null;
+      _filterTagId = fav.isEmpty ? null : fav.first['id'] as int;
+    });
+    _load();
+  }
+
+  void _goTagFiles(int tagId) {
+    setState(() {
+      _navIndex = 0;
+      _pathStack.clear();
+      _currentParent = 0;
+      _recentOnly = false;
+      _activeTagId = null;
+      _filterTagId = tagId;
+    });
+    _load();
+  }
+
+  void _goTagManage() {
+    setState(() => _navIndex = 1);
+    _load();
+  }
+
+  void _openTagSearch() {
+    setState(() {
+      _navIndex = 0;
+      _filterTagId = null;
+      _recentOnly = false;
+      _searching = true;
+    });
+  }
+
+  void _openSettings() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
   }
 
   /// M3 悬浮底栏：圆角胶囊浮于内容之上，药丸形选中指示器 + 导航项。
@@ -836,15 +1113,6 @@ class _LibraryPageState extends State<LibraryPage> {
     final subtitle = (f['size'] ?? 0) > 0
         ? Text(_size(f['size']), style: const TextStyle(fontSize: 12))
         : null;
-    final trailing = _selecting || isSel
-        ? Icon(isSel ? Icons.check_circle : Icons.circle_outlined,
-            color: isSel ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant)
-        : (!isDir
-            ? IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () => _onFileMenu(f),
-              )
-            : null);
 
     // 左侧：图片预览图 / 视频封面（方框），其余为类型图标
     Widget leading;
@@ -878,76 +1146,189 @@ class _LibraryPageState extends State<LibraryPage> {
       leading = Icon(_typeIcon(f['ext']), size: 32, color: Theme.of(context).colorScheme.onSurfaceVariant);
     }
 
+    final tags = (f['tags'] as List?) ?? const [];
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Card(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
-        color: isSel ? Theme.of(context).colorScheme.primaryContainer : null,
+        color: isSel ? cs.primaryContainer : null,
         child: InkWell(
           onTap: () => _onTileTap(f, isDir, id),
-          onLongPress: () => setState(() {
-            _selecting = true;
-            _toggleSelect(id);
-          }),
-          // 统一行高 64，内容上下左右居中
-          child: SizedBox(
-            height: 64,
-            child: Row(
-              children: [
-                const SizedBox(width: 16),
-                Center(child: SizedBox(width: 48, height: 48, child: Center(child: leading))),
-                const SizedBox(width: 12),
-                Expanded(
+          onLongPress: () => _onTileLongPress(f, isDir, id),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(width: 8),
+              // 图标区：独立响应，恒为"切换选中"（design_skill 6.1/6.11）
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    setState(() {
+                      _selecting = true;
+                      _toggleSelect(id);
+                    });
+                  },
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Center(child: leading),
+                        if (isSel)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Icon(Icons.check_circle,
+                                size: 18, color: cs.primary),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        f['name'].toString(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 15),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              f['name'].toString(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ),
+                          if (_selecting || isSel)
+                            Icon(
+                              isSel
+                                  ? Icons.check_circle
+                                  : Icons.circle_outlined,
+                              size: 20,
+                              color: isSel
+                                  ? cs.primary
+                                  : cs.onSurfaceVariant,
+                            )
+                          else if (!isDir)
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.more_vert, size: 20),
+                              onPressed: () => _onFileMenu(f),
+                            ),
+                        ],
                       ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        subtitle,
+                      ?subtitle,
+                      if (tags.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        _buildTagChips(tags),
                       ],
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Center(child: trailing ?? const SizedBox(width: 48, height: 24)),
-                const SizedBox(width: 4),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
         ),
       ),
     );
   }
 
+  /// 标签片行（design_skill 10.4：列表项名称/描述下方显示文件标签）
+  Widget _buildTagChips(List<dynamic> tags) {
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        for (final t in tags.take(4))
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (t['color'] != null && t['color'].toString().isNotEmpty) ...[
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: _colorOf(t['color']),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  t['name'].toString(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (tags.length > 4)
+          Text(
+            '+${tags.length - 4}',
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 行长按：无选中→选中进入多选；有选中→打开（design_skill 6.3）
+  void _onTileLongPress(Map<String, dynamic> f, bool isDir, int id) {
+    if (_selecting) {
+      if (isDir) {
+        _enterDir(f);
+      } else {
+        _preview(f);
+      }
+    } else {
+      setState(() {
+        _selecting = true;
+        _toggleSelect(id);
+      });
+    }
+  }
+
   Widget _buildGridTile(Map<String, dynamic> f) {
     final id = f['id'] as int;
     final isDir = (f['isDir'] ?? 0) == 1;
     final isSel = _selected.contains(id);
+    final tags = (f['tags'] as List?) ?? const [];
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
-      onLongPress: () => setState(() {
-        _selecting = true;
-        _toggleSelect(id);
-      }),
+      onLongPress: () => _onTileLongPress(f, isDir, id),
       child: Card(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
+        color: isSel ? cs.primaryContainer : null,
         child: InkWell(
           onTap: () => _onTileTap(f, isDir, id),
-          // 百分比布局：预览图 ~60%，名称 ~25%，大小 ~15%，比例协调，避免"大格子小内容"
+          // 百分比布局：预览图 ~50%，名称 ~20%，大小 ~12%，标签 ~18%
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Column(
               children: [
                 Expanded(
-                  flex: 60,
+                  flex: 50,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -957,20 +1338,20 @@ class _LibraryPageState extends State<LibraryPage> {
                             : _isVideo(f['ext'])
                                 ? ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true)
                                 : Icon(isDir ? Icons.folder : _typeIcon(f['ext']),
-                                    size: 34, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                    size: 34, color: cs.onSurfaceVariant),
                       ),
                       if (isSel)
                         Positioned(
                           right: 0,
                           top: 0,
-                          child: Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
+                          child: Icon(Icons.check_circle, color: cs.primary),
                         ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 4),
                 Expanded(
-                  flex: 25,
+                  flex: 20,
                   child: Center(
                     child: Text(
                       f['name'].toString(),
@@ -982,15 +1363,25 @@ class _LibraryPageState extends State<LibraryPage> {
                   ),
                 ),
                 Expanded(
-                  flex: 15,
+                  flex: 12,
                   child: Center(
                     child: Text(
                       (f['size'] ?? 0) > 0 ? _size(f['size']) : '',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
                     ),
                   ),
                 ),
+                if (tags.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Expanded(
+                    flex: 18,
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: _buildTagChips(tags),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1378,6 +1769,14 @@ class _ThumbnailImageState extends State<ThumbnailImage> {
 }
 
 enum _SortMode { name, size, time }
+
+enum _ToolbarMenu {
+  viewList,
+  viewGrid,
+  sortName,
+  sortSize,
+  sortTime,
+}
 
 /// 库统计内容
 class _DashboardContent extends StatelessWidget {

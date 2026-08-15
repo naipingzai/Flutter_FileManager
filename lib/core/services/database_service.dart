@@ -46,7 +46,7 @@ class DatabaseService {
 
   ({int imported, int failed})? importDir(String dir) {
     init();
-    return _db.importDir(dir);
+    return _db.importDir(dir, '已导入');
   }
 
   Map<String, dynamic>? stats() {
