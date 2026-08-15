@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/services/settings_service.dart';
+import 'package:flutter_file_manager/features/library/display_settings_page.dart';
 
 /// 设置页（design_skill 13.1，模式 A：顶部栏 + 卡片设置项列表）
 class SettingsPage extends StatefulWidget {
@@ -119,8 +120,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _openDisplaySettings() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('显示设置（开发中）')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DisplaySettingsPage()),
     );
   }
 }

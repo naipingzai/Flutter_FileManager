@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_file_manager/core/native/file_ffi.dart';
 import 'package:flutter_file_manager/core/native/system_ffi.dart';
+import 'package:flutter_file_manager/core/services/ui_scale.dart';
 import 'package:flutter_file_manager/core/theme/m3_theme.dart';
 import 'package:flutter_file_manager/features/library/library_page.dart';
 
@@ -31,6 +32,18 @@ class FlutterFileManagerApp extends StatelessWidget {
       theme: M3Theme.light(),
       darkTheme: M3Theme.dark(),
       themeMode: ThemeMode.system,
+      // 应用"显示设置"的全局字体缩放 + 提供 UiScale 给子树（实时生效）
+      builder: (context, child) => ValueListenableBuilder<UiScale>(
+        valueListenable: UiScaleController.instance,
+        builder: (context, scale, _) => UiScaleScope(
+          controller: UiScaleController.instance,
+          child: MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale.font)),
+            child: child!,
+          ),
+        ),
+      ),
       home: const PermissionWrapper(),
     );
   }

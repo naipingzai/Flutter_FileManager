@@ -8,7 +8,9 @@ import 'package:flutter_file_manager/core/native/media_ffi.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
 import 'package:flutter_file_manager/core/services/settings_service.dart';
+import 'package:flutter_file_manager/core/services/ui_scale.dart';
 import 'package:flutter_file_manager/features/legacy/about/about_page.dart';
+import 'package:flutter_file_manager/features/library/file_properties_dialog.dart';
 import 'package:flutter_file_manager/features/library/settings_page.dart';
 import 'package:flutter_file_manager/features/library/tag_manage_page.dart';
 import 'package:flutter_file_manager/features/library/tag_search_page.dart';
@@ -1112,6 +1114,7 @@ class _LibraryPageState extends State<LibraryPage> {
     final id = f['id'] as int;
     final isDir = (f['isDir'] ?? 0) == 1;
     final isSel = _selected.contains(id);
+    final scale = UiScaleScope.of(context);
     final subtitle = (f['size'] ?? 0) > 0
         ? Text(_size(f['size']), style: const TextStyle(fontSize: 12))
         : null;
@@ -1119,13 +1122,13 @@ class _LibraryPageState extends State<LibraryPage> {
     // 左侧：图片预览图 / 视频封面（方框），其余为类型图标
     Widget leading;
     if (isDir) {
-      leading = Icon(Icons.folder, size: 36, color: Theme.of(context).colorScheme.onSurfaceVariant);
+      leading = Icon(Icons.folder, size: scale.iconDp(36), color: Theme.of(context).colorScheme.onSurfaceVariant);
     } else if (_isImage(f['ext'])) {
       leading = ClipRRect(
         borderRadius: BorderRadius.circular(4),
         child: SizedBox(
-          width: 48,
-          height: 44,
+          width: scale.iconDp(48),
+          height: scale.iconDp(44),
           child: ThumbnailImage(path: (f['path'] ?? '').toString()),
         ),
       );
@@ -1133,8 +1136,8 @@ class _LibraryPageState extends State<LibraryPage> {
       leading = ClipRRect(
         borderRadius: BorderRadius.circular(4),
         child: SizedBox(
-          width: 48,
-          height: 44,
+          width: scale.iconDp(48),
+          height: scale.iconDp(44),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -1145,13 +1148,14 @@ class _LibraryPageState extends State<LibraryPage> {
         ),
       );
     } else {
-      leading = Icon(_typeIcon(f['ext']), size: 32, color: Theme.of(context).colorScheme.onSurfaceVariant);
+      leading = Icon(_typeIcon(f['ext']), size: scale.iconDp(32), color: Theme.of(context).colorScheme.onSurfaceVariant);
     }
 
     final tags = (f['tags'] as List?) ?? const [];
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      padding: EdgeInsets.symmetric(
+          horizontal: scale.marginDp(16), vertical: 2),
       child: Card(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
@@ -1451,6 +1455,17 @@ class _LibraryPageState extends State<LibraryPage> {
               onTap: () {
                 Navigator.pop(ctx);
                 _renameFile(id, f['name'].toString());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('属性'),
+              onTap: () {
+                Navigator.pop(ctx);
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => FilePropertiesDialog(file: f),
+                );
               },
             ),
             ListTile(
