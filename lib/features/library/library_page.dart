@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/native/media_ffi.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
-import 'package:flutter_file_manager/features/library/widgets/glass.dart';
 import 'package:flutter_file_manager/features/viewer/audio/audio_player_page.dart';
 import 'package:flutter_file_manager/features/viewer/csv/csv_viewer_page.dart';
 import 'package:flutter_file_manager/features/viewer/ebook/ebook_viewer_page.dart';
@@ -384,100 +383,94 @@ class _LibraryPageState extends State<LibraryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Glass.background(
-      Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: Glass.appBar(
-          context,
-          title: _searching
-              ? TextField(
-                  controller: _searchCtrl,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    hintText: '搜索库内文件...',
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (_) => _load(),
-                )
-              : Text(_filterTagId != null
-                  ? '标签: ${_tagName(_filterTagId)}'
-                  : _navIndex == 0
-                      ? _currentPathText
-                      : _navIndex == 1
-                          ? '标签'
-                          : '更多'),
-          leading: _navIndex == 0
-              ? (_searching
-                  ? IconButton(icon: const Icon(Icons.close), onPressed: () {
-                      setState(() {
-                        _searching = false;
-                        _searchCtrl.clear();
-                      });
-                      _load();
-                    })
-                  : (_pathStack.isNotEmpty
-                      ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
-                      : null))
-              : null,
-          actions: [
-            if (_navIndex == 0) ...[
-              IconButton(
-                icon: Icon(_searching ? Icons.search_off : Icons.search),
-                onPressed: () => setState(() {
-                  _searching = !_searching;
-                  if (!_searching) {
-                    _searchCtrl.clear();
-                    _load();
-                  }
-                }),
-              ),
-              IconButton(
-                icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
-                onPressed: () => setState(() => _grid = !_grid),
-              ),
-              PopupMenuButton<_SortMode>(
-                icon: const Icon(Icons.sort),
-                onSelected: (m) => setState(() {
-                  _sort = m;
-                  _sortFiles();
-                }),
-                itemBuilder: (_) => const [
-                  CheckedPopupMenuItem(value: _SortMode.name, child: Text('按名称')),
-                  CheckedPopupMenuItem(value: _SortMode.size, child: Text('按大小')),
-                  CheckedPopupMenuItem(value: _SortMode.time, child: Text('按导入时间')),
-                ],
-              ),
-            ],
-          ],
-        ),
-        body: IndexedStack(
-          index: _navIndex,
-          children: [
-            _buildLibraryTab(),
-            _buildTagsTab(),
-            _buildMoreTab(),
-          ],
-        ),
-        floatingActionButton: _navIndex == 0 && !_selecting
-            ? FloatingActionButton(
-                backgroundColor: Colors.blue.shade600,
-                foregroundColor: Colors.white,
-                onPressed: _import,
-                child: const Icon(Icons.add),
+    return Scaffold(
+      appBar: AppBar(
+        title: _searching
+            ? TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: '搜索库内文件...',
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) => _load(),
               )
+            : Text(_filterTagId != null
+                ? '标签: ${_tagName(_filterTagId)}'
+                : _navIndex == 0
+                    ? _currentPathText
+                    : _navIndex == 1
+                        ? '标签'
+                        : '更多'),
+        leading: _navIndex == 0
+            ? (_searching
+                ? IconButton(icon: const Icon(Icons.close), onPressed: () {
+                    setState(() {
+                      _searching = false;
+                      _searchCtrl.clear();
+                    });
+                    _load();
+                  })
+                : (_pathStack.isNotEmpty
+                    ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
+                    : null))
             : null,
-        bottomNavigationBar: _selecting
-            ? _buildSelectionBar()
-            : Glass.bottomNav(
-                current: _navIndex,
-                onChanged: (i) => setState(() => _navIndex = i),
-                items: const [
-                  (icon: Icons.folder_outlined, active: Icons.folder, label: '文件库'),
-                  (icon: Icons.label_outline, active: Icons.label, label: '标签'),
-                  (icon: Icons.more_horiz, active: Icons.more_horiz, label: '更多'),
-                ],
-              ),
+        actions: [
+          if (_navIndex == 0) ...[
+            IconButton(
+              icon: Icon(_searching ? Icons.search_off : Icons.search),
+              onPressed: () => setState(() {
+                _searching = !_searching;
+                if (!_searching) {
+                  _searchCtrl.clear();
+                  _load();
+                }
+              }),
+            ),
+            IconButton(
+              icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
+              onPressed: () => setState(() => _grid = !_grid),
+            ),
+            PopupMenuButton<_SortMode>(
+              icon: const Icon(Icons.sort),
+              onSelected: (m) => setState(() {
+                _sort = m;
+                _sortFiles();
+              }),
+              itemBuilder: (_) => const [
+                CheckedPopupMenuItem(value: _SortMode.name, child: Text('按名称')),
+                CheckedPopupMenuItem(value: _SortMode.size, child: Text('按大小')),
+                CheckedPopupMenuItem(value: _SortMode.time, child: Text('按导入时间')),
+              ],
+            ),
+          ],
+        ],
       ),
+      body: IndexedStack(
+        index: _navIndex,
+        children: [
+          _buildLibraryTab(),
+          _buildTagsTab(),
+          _buildMoreTab(),
+        ],
+      ),
+      floatingActionButton: _navIndex == 0 && !_selecting
+          ? FloatingActionButton(
+              onPressed: _import,
+              child: const Icon(Icons.add),
+            )
+          : null,
+      bottomNavigationBar: _selecting
+          ? _buildSelectionBar()
+          : NavigationBar(
+              selectedIndex: _navIndex,
+              onDestinationSelected: (i) => setState(() => _navIndex = i),
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder), label: '文件库'),
+                NavigationDestination(icon: Icon(Icons.label_outline), selectedIcon: Icon(Icons.label), label: '标签'),
+                NavigationDestination(icon: Icon(Icons.more_horiz), label: '更多'),
+              ],
+            ),
     );
   }
 
@@ -504,28 +497,14 @@ class _LibraryPageState extends State<LibraryPage> {
           for (final c in cats)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: Glass.box(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                radius: 14,
-                child: InkWell(
-                  onTap: () => setState(() {
-                    _category = c;
-                    _filterTagId = null;
-                    _load();
-                  }),
-                  child: Center(
-                    child: Text(
-                      c,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: _category == c
-                            ? Colors.blue.shade700
-                            : Colors.black87,
-                        fontWeight: _category == c ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ),
+              child: ChoiceChip(
+                label: Text(c),
+                selected: _category == c,
+                onSelected: (_) => setState(() {
+                  _category = c;
+                  _filterTagId = null;
+                  _load();
+                }),
               ),
             ),
         ],
@@ -533,31 +512,43 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  /// 标签页（重构：颜色 + 计数 + 点按过滤）
+  /// 标签页（颜色 + 计数 + 点按过滤）
   Widget _buildTagsTab() {
     final tags = _tags;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Glass.box(
-          child: Row(
-            children: [
-              Icon(Icons.new_label_outlined, color: Colors.blue.shade700),
-              const SizedBox(width: 8),
-              const Expanded(child: Text('标签（用户自定义）', style: TextStyle(fontWeight: FontWeight.w600))),
-              TextButton.icon(
-                onPressed: _createTag,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('新建'),
-              ),
-            ],
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                Icon(Icons.new_label_outlined, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('标签（用户自定义）', style: TextStyle(fontWeight: FontWeight.w600))),
+                TextButton.icon(
+                  onPressed: _createTag,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('新建'),
+                ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         for (final t in tags)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Glass.box(
+          Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(radius: 6, backgroundColor: _colorOf(t['color']) ?? Colors.grey),
+              title: Text(t['name'].toString()),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${t['count'] ?? 0} 个', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  IconButton(icon: const Icon(Icons.more_vert, size: 18), onPressed: () => _tagMenu(t)),
+                ],
+              ),
               onTap: () {
                 setState(() {
                   _filterTagId = t['id'] as int;
@@ -566,28 +557,6 @@ class _LibraryPageState extends State<LibraryPage> {
                 });
                 _load();
               },
-              child: Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: _colorOf(t['color']) ?? Colors.grey,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(t['name'].toString(), style: const TextStyle(fontSize: 15)),
-                  ),
-                  Text('${t['count'] ?? 0} 个',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                  IconButton(
-                    icon: const Icon(Icons.more_vert, size: 18),
-                    onPressed: () => _tagMenu(t),
-                  ),
-                ],
-              ),
             ),
           ),
       ],
@@ -615,27 +584,14 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _moreCard(IconData icon, String title, String sub, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Glass.box(
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(sub, style: const TextStyle(fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.blue.shade700),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text(sub, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
-        ),
       ),
     );
   }
@@ -814,9 +770,8 @@ class _LibraryPageState extends State<LibraryPage> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: Glass.box(
-        padding: EdgeInsets.zero,
-        radius: 14,
+      child: Card(
+        margin: EdgeInsets.zero,
         child: ListTile(
           leading: leading,
           title: Text(
@@ -846,46 +801,51 @@ class _LibraryPageState extends State<LibraryPage> {
         _selecting = true;
         _toggleSelect(id);
       }),
-      child: Glass.box(
-        padding: const EdgeInsets.all(8),
-        radius: 14,
-        onTap: () => _onTileTap(f, isDir, id),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(
+      child: Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _onTileTap(f, isDir, id),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (_isImage(f['ext']))
-                  SizedBox(
-                    width: 56,
-                    height: 52,
-                    child: ThumbnailImage(path: (f['path'] ?? '').toString()),
-                  )
-                else if (_isVideo(f['ext']))
-                  SizedBox(
-                    width: 56,
-                    height: 52,
-                    child: ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true),
-                  )
-                else
-                  Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 44, color: Colors.grey[700]),
-                if (isSel)
-                  const Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Icon(Icons.check_circle, color: Colors.blue),
-                  ),
+                Stack(
+                  children: [
+                    if (_isImage(f['ext']))
+                      SizedBox(
+                        width: 56,
+                        height: 52,
+                        child: ThumbnailImage(path: (f['path'] ?? '').toString()),
+                      )
+                    else if (_isVideo(f['ext']))
+                      SizedBox(
+                        width: 56,
+                        height: 52,
+                        child: ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true),
+                      )
+                    else
+                      Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 44, color: Colors.grey[700]),
+                    if (isSel)
+                      const Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Icon(Icons.check_circle, color: Colors.blue),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  f['name'].toString(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12),
+                ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              f['name'].toString(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
+          ),
         ),
       ),
     );
