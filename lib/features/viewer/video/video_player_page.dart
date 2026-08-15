@@ -53,6 +53,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   int _audioChannels = 0;
   int _audioPos = 0; // 已播放音频字节游标
   Timer? _audioTimer;
+  int _audioRampBytes = 0; // seek 后淡入渐变字节数，避免爆破音
 
   @override
   void initState() {
@@ -125,7 +126,22 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     if (_audioPos + chunk > pcm.length) chunk = pcm.length - _audioPos;
     final ptr = malloc<Uint8>(chunk);
     try {
-      ptr.asTypedList(chunk).setAll(0, pcm.sublist(_audioPos, _audioPos + chunk));
+      final data = pcm.sublist(_audioPos, _audioPos + chunk);
+      // seek 后对开头做线性淡入，消除切到新波形位置的爆破音
+      if (_audioRampBytes > 0) {
+        final ramp = _audioRampBytes < chunk ? _audioRampBytes : chunk;
+        for (var i = 0; i < ramp; i += 2) {
+          final gain = i / ramp;
+          final lo = data[i];
+          final hi = data[i + 1];
+          var v = (lo | (hi << 8)).toSigned(16);
+          v = (v * gain).round();
+          data[i] = v & 0xff;
+          data[i + 1] = (v >> 8) & 0xff;
+        }
+        _audioRampBytes = 0;
+      }
+      ptr.asTypedList(chunk).setAll(0, data);
       final written = FileService().audioOutputWrite(_audioOutput!, ptr, chunk);
       if (written > 0) {
         _audioPos += written;
@@ -245,10 +261,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     seconds = seconds.clamp(0.0, _duration > 0 ? _duration : seconds);
     final fs = FileService();
     fs.seekVideo(_handle!, seconds);
-    // 同步音频游标到对应位置
+    // 同步音频游标到对应位置，并对新起点做淡入（避免拖动反复 stop/restart 爆破音）
     if (_audioPcm != null && _audioSampleRate > 0 && _audioChannels > 0) {
       _audioPos = (seconds * _audioSampleRate * _audioChannels * 2).round();
       if (_audioPos > _audioPcm!.length) _audioPos = _audioPcm!.length;
+      _audioRampBytes = _audioSampleRate * _audioChannels * 2 ~/ 100; // ~10ms
     }
     setState(() {
       _currentTime = seconds;
@@ -256,10 +273,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     });
     // 立即解码一帧作为预览
     _nextFrameSafe();
-    if (_playing) {
-      _pause();
-      _play();
-    }
   }
 
   String _formatTime(double seconds) {

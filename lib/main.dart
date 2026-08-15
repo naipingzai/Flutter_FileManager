@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_file_manager/core/native/file_ffi.dart';
 import 'package:flutter_file_manager/core/native/system_ffi.dart';
-import 'package:flutter_file_manager/features/file_manager/file_manager_page.dart';
+import 'package:flutter_file_manager/features/library/library_page.dart';
 
 const _permissionChannel = MethodChannel(
   'com.example.flutter_file_manager/permissions',
@@ -147,7 +147,7 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
     }
 
     if (_granted) {
-      return const FileManagerPage();
+      return const LibraryPage();
     }
 
     return Scaffold(
