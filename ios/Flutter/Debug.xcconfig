@@ -1,14 +1,8 @@
 
 #include "Generated.xcconfig"
 
-// 链接 C++ 静态库（core/media + 预编译 FFmpeg，force_load 保持全部符号供 FFI）
+// 链接原生静态库（libflutter_native.a = core/media + 预编译 FFmpeg，force_load 保持全部符号供 FFI）
 OTHER_LDFLAGS=$(inherited) \
-  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/libcore.a \
-  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/libmedia.a \
-  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/ffmpeg/lib/libavformat.a \
-  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/ffmpeg/lib/libavcodec.a \
-  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/ffmpeg/lib/libavutil.a \
-  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/ffmpeg/lib/libswscale.a \
-  -Wl,-force_load,$(PROJECT_DIR)/build/native/ios/ffmpeg/lib/libswresample.a \
+  -Wl,-force_load,$(PROJECT_DIR)/../build/native/ios/libflutter_native.a \
   -Wl,-export_dynamic \
   -lz -framework AudioToolbox -framework CoreFoundation
