@@ -44,6 +44,10 @@ char *media_decode_image_buffer(const unsigned char *data, int len);
 MEDIA_API
 char *media_make_thumbnail(const char *path, int max_size);
 
+// 生成视频封面（解码第一帧并缩略）。返回同上。
+MEDIA_API
+char *media_make_video_thumbnail(const char *path, int max_size);
+
 // ============================================================
 // 电子书 EPUB（miniz）
 // ============================================================

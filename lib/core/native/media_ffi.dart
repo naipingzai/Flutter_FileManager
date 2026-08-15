@@ -25,6 +25,10 @@ typedef DecodeImageBufferDart = Pointer<Utf8> Function(Pointer<Uint8>, int);
 typedef MakeThumbnailNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
 typedef MakeThumbnailDart = Pointer<Utf8> Function(Pointer<Utf8>, int);
 
+// char* media_make_video_thumbnail(const char* path, int max_size)
+typedef MakeVideoThumbnailNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
+typedef MakeVideoThumbnailDart = Pointer<Utf8> Function(Pointer<Utf8>, int);
+
 // char* media_epub_extract_text(const char* path)
 typedef EpubExtractTextNative = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef EpubExtractTextDart = Pointer<Utf8> Function(Pointer<Utf8>);
@@ -87,6 +91,7 @@ class MediaNative {
   late final DecodeImageFileDart decodeImageFile;
   late final DecodeImageBufferDart decodeImageBuffer;
   late final MakeThumbnailDart makeThumbnail;
+  late final MakeVideoThumbnailDart makeVideoThumbnail;
   late final EpubExtractTextDart epubExtractText;
   late final EpubListFilesDart epubListFiles;
   late final VideoOpenDart videoOpen;
@@ -116,6 +121,7 @@ class MediaNative {
     decodeImageFile = _lib.lookupFunction<DecodeImageFileNative, DecodeImageFileDart>('media_decode_image_file');
     decodeImageBuffer = _lib.lookupFunction<DecodeImageBufferNative, DecodeImageBufferDart>('media_decode_image_buffer');
     makeThumbnail = _lib.lookupFunction<MakeThumbnailNative, MakeThumbnailDart>('media_make_thumbnail');
+    makeVideoThumbnail = _lib.lookupFunction<MakeVideoThumbnailNative, MakeVideoThumbnailDart>('media_make_video_thumbnail');
     epubExtractText = _lib.lookupFunction<EpubExtractTextNative, EpubExtractTextDart>('media_epub_extract_text');
     epubListFiles = _lib.lookupFunction<EpubListFilesNative, EpubListFilesDart>('media_epub_list_files');
     videoOpen = _lib.lookupFunction<VideoOpenNative, VideoOpenDart>('media_video_open');
@@ -154,6 +160,17 @@ class MediaNative {
     final pp = path.toNativeUtf8();
     try {
       final str = _callJson(() => makeThumbnail(pp, maxSize));
+      return jsonDecode(str) as Map<String, dynamic>?;
+    } finally {
+      malloc.free(pp);
+    }
+  }
+
+  /// 生成视频封面（返回 base64 + 尺寸 JSON）
+  Map<String, dynamic>? makeVideoThumbnailJson(String path, int maxSize) {
+    final pp = path.toNativeUtf8();
+    try {
+      final str = _callJson(() => makeVideoThumbnail(pp, maxSize));
       return jsonDecode(str) as Map<String, dynamic>?;
     } finally {
       malloc.free(pp);

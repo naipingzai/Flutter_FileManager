@@ -219,65 +219,6 @@ char *db_init(const char *data_dir) {
     return strdup("{\"error\":\"\"}");
 }
 
-char *db_import_file(const char *src, const char *default_tags) {
-    if (!src || !*src) return strdup("{\"error\":\"no source\"}");
-    fs::path src_path(src);
-    std::string name = src_path.filename().string();
-    std::string ext = file_ext(name);
-    std::string uuid = std::to_string(now_epoch()) + "_" + name;
-    std::string dest = g_data_dir + "/files/" + uuid;
-    try {
-        fs::create_directories(g_data_dir + "/files");
-        fs::copy_file(src_path, dest, fs::copy_options::overwrite_existing);
-    } catch (...) {
-        return strdup("{\"error\":\"copy failed\"}");
-    }
-    long long size = 0;
-    try { size = (long long)fs::file_size(src_path); } catch (...) {}
-
-    sqlite3_stmt *st;
-    const char *ins = "INSERT INTO files(uuid,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted)"
-                      " VALUES(?,?,?,?,?,?,?,?,0,0,?,0)";
-    if (sqlite3_prepare_v2(g_db, ins, -1, &st, nullptr) != SQLITE_OK) return strdup("{\"error\":\"insert\"}");
-    sqlite3_bind_text(st, 1, uuid.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(st, 2, name.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(st, 3, ext.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(st, 4, ext_mime(ext), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(st, 5, size);
-    sqlite3_bind_text(st, 6, dest.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(st, 7, src, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(st, 8, "filesystem", -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(st, 9, now_epoch());
-    if (sqlite3_step(st) != SQLITE_DONE) { sqlite3_finalize(st); return strdup("{\"error\":\"insert2\"}"); }
-    long long fid = last_insert_id();
-    sqlite3_finalize(st);
-
-    // 默认标签
-    long long def = ensure_tag(default_tag_for_ext(ext));
-    if (def > 0) {
-        sqlite3_stmt *ft;
-        if (sqlite3_prepare_v2(g_db, "INSERT OR IGNORE INTO file_tags(file_id,tag_id) VALUES(?,?)", -1, &ft, nullptr) == SQLITE_OK) {
-            sqlite3_bind_int64(ft, 1, fid); sqlite3_bind_int64(ft, 2, def);
-            sqlite3_step(ft); sqlite3_finalize(ft);
-        }
-    }
-    if (default_tags && *default_tags) {
-        for (auto &t : split_csv(default_tags)) {
-            if (t.empty()) continue;
-            long long tid = ensure_tag(t.c_str());
-            sqlite3_stmt *ft;
-            if (sqlite3_prepare_v2(g_db, "INSERT OR IGNORE INTO file_tags(file_id,tag_id) VALUES(?,?)", -1, &ft, nullptr) == SQLITE_OK) {
-                sqlite3_bind_int64(ft, 1, fid); sqlite3_bind_int64(ft, 2, tid);
-                sqlite3_step(ft); sqlite3_finalize(ft);
-            }
-        }
-    }
-
-    char sql[256];
-    snprintf(sql, sizeof(sql), "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted FROM files WHERE id=%lld", fid);
-    return query_files_json(sql, 0, 0);
-}
-
 char *db_list_files(int parent_id) {
     const char *sql = parent_id < 0
         ? "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted FROM files WHERE deleted=0"
@@ -310,6 +251,137 @@ char *db_search(const char *query) {
             file_row_to_json(&jb, st);
         }
         sqlite3_finalize(st);
+    }
+    jb_append_str(&jb, "]}");
+    return jb_finish(&jb);
+}
+
+// 单文件导入（复制进内部 + 记录 + 默认标签），返回 0 失败 / 1 成功
+static int import_one(const char *src, const char *default_tags) {
+    fs::path src_path(src);
+    std::string name = src_path.filename().string();
+    std::string ext = file_ext(name);
+    std::string uuid = std::to_string(now_epoch()) + "_" + name;
+    std::string dest = g_data_dir + "/files/" + uuid;
+    try {
+        fs::create_directories(g_data_dir + "/files");
+        fs::copy_file(src_path, dest, fs::copy_options::overwrite_existing);
+    } catch (...) { return 0; }
+    long long size = 0;
+    try { size = (long long)fs::file_size(src_path); } catch (...) {}
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db,
+        "INSERT INTO files(uuid,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted)"
+        " VALUES(?,?,?,?,?,?,?,?,0,0,?,0)", -1, &st, nullptr) != SQLITE_OK) return 0;
+    sqlite3_bind_text(st, 1, uuid.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 3, ext.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 4, ext_mime(ext), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(st, 5, size);
+    sqlite3_bind_text(st, 6, dest.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 7, src, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 8, "filesystem", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(st, 9, now_epoch());
+    if (sqlite3_step(st) != SQLITE_DONE) { sqlite3_finalize(st); return 0; }
+    long long fid = last_insert_id();
+    sqlite3_finalize(st);
+    // 默认标签
+    auto link_tag = [&](const std::string &tname) {
+        long long tid = ensure_tag(tname.c_str());
+        if (tid <= 0) return;
+        sqlite3_stmt *ft;
+        if (sqlite3_prepare_v2(g_db, "INSERT OR IGNORE INTO file_tags(file_id,tag_id) VALUES(?,?)", -1, &ft, nullptr) == SQLITE_OK) {
+            sqlite3_bind_int64(ft, 1, fid); sqlite3_bind_int64(ft, 2, tid);
+            sqlite3_step(ft); sqlite3_finalize(ft);
+        }
+    };
+    link_tag(default_tag_for_ext(ext));
+    if (default_tags && *default_tags) {
+        for (auto &t : split_csv(default_tags)) if (!t.empty()) link_tag(t);
+    }
+    return 1;
+}
+
+char *db_import_file(const char *src, const char *default_tags) {
+    if (!src || !*src) return strdup("{\"error\":\"no source\"}");
+    if (!import_one(src, default_tags)) return strdup("{\"error\":\"import failed\"}");
+    // 返回新插入的记录
+    sqlite3_stmt *st;
+    long long fid = 0;
+    if (sqlite3_prepare_v2(g_db, "SELECT id FROM files ORDER BY id DESC LIMIT 1", -1, &st, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(st) == SQLITE_ROW) fid = sqlite3_column_int64(st, 0);
+        sqlite3_finalize(st);
+    }
+    char sql[256];
+    snprintf(sql, sizeof(sql), "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted FROM files WHERE id=%lld", fid);
+    return query_files_json(sql, 0, 0);
+}
+
+// 批量导入文件夹（递归）中的文件
+char *db_import_dir(const char *dir, const char *default_tags) {
+    if (!dir || !*dir) return strdup("{\"error\":\"no dir\"}");
+    int imported = 0, failed = 0;
+    try {
+        fs::recursive_directory_iterator it(dir, fs::directory_options::skip_permission_denied), end;
+        for (; it != end; ++it) {
+            if (it->is_regular_file()) {
+                if (import_one(it->path().string().c_str(), default_tags)) imported++; else failed++;
+            }
+        }
+    } catch (...) {
+        return strdup("{\"error\":\"walk failed\"}");
+    }
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"error\":\"\",\"imported\":%d,\"failed\":%d}", imported, failed);
+    return strdup(buf);
+}
+
+// 库内统计
+char *db_stats(void) {
+    long long files = 0, dirs = 0, size = 0;
+    long long img = 0, vid = 0, aud = 0, doc = 0, other = 0;
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "SELECT is_dir,size,ext FROM files WHERE deleted=0", -1, &st, nullptr) == SQLITE_OK) {
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            int isdir = sqlite3_column_int(st, 0);
+            long long sz = sqlite3_column_int64(st, 1);
+            const char *extc = (const char*)sqlite3_column_text(st, 2);
+            std::string e = extc ? extc : "";
+            if (isdir) { dirs++; continue; }
+            files++; size += sz;
+            const char *t = default_tag_for_ext(e);
+            if (t == std::string("图片")) img++;
+            else if (t == std::string("视频")) vid++;
+            else if (t == std::string("音频")) aud++;
+            else if (t == std::string("文档") || t == std::string("电子书")) doc++;
+            else other++;
+        }
+        sqlite3_finalize(st);
+    }
+    JsonBuilder jb = jb_new();
+    jb_append_str(&jb, "{\"error\":\"\",\"files\":"); jb_append_int(&jb, files);
+    jb_append_str(&jb, ",\"dirs\":"); jb_append_int(&jb, dirs);
+    jb_append_str(&jb, ",\"size\":"); jb_append_int(&jb, size);
+    jb_append_str(&jb, ",\"byType\":{\"image\":"); jb_append_int(&jb, img);
+    jb_append_str(&jb, ",\"video\":"); jb_append_int(&jb, vid);
+    jb_append_str(&jb, ",\"audio\":"); jb_append_int(&jb, aud);
+    jb_append_str(&jb, ",\"doc\":"); jb_append_int(&jb, doc);
+    jb_append_str(&jb, ",\"other\":"); jb_append_int(&jb, other);
+    jb_append_str(&jb, "},\"byTag\":[");
+    // tag counts
+    sqlite3_stmt *ts = nullptr;
+    if (sqlite3_prepare_v2(g_db,
+        "SELECT t.name,COUNT(ft.file_id) FROM tags t LEFT JOIN file_tags ft ON ft.tag_id=t.id GROUP BY t.id ORDER BY t.name",
+        -1, &ts, nullptr) == SQLITE_OK) {
+        bool first = true;
+        while (sqlite3_step(ts) == SQLITE_ROW) {
+            if (!first) jb_append_str(&jb, ",");
+            first = false;
+            jb_append_str(&jb, "{\"name\":"); jb_append_esc(&jb, (const char*)sqlite3_column_text(ts, 0));
+            jb_append_str(&jb, ",\"count\":"); jb_append_int(&jb, sqlite3_column_int64(ts, 1));
+            jb_append_str(&jb, "}");
+        }
+        sqlite3_finalize(ts);
     }
     jb_append_str(&jb, "]}");
     return jb_finish(&jb);

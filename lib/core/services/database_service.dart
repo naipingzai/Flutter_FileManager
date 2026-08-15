@@ -44,6 +44,16 @@ class DatabaseService {
     return _db.search(query);
   }
 
+  ({int imported, int failed})? importDir(String dir) {
+    init();
+    return _db.importDir(dir);
+  }
+
+  Map<String, dynamic>? stats() {
+    init();
+    return _db.stats();
+  }
+
   List<Map<String, dynamic>> listAll() {
     init();
     return _db.listAll();

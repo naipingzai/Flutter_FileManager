@@ -411,8 +411,10 @@ class _LibraryPageState extends State<LibraryPage> {
             ],
           ),
           IconButton(icon: const Icon(Icons.add), tooltip: '导入文件', onPressed: _import),
+          IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: '导入文件夹', onPressed: _importDir),
           IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: '新建目录', onPressed: _mkdir),
           IconButton(icon: const Icon(Icons.new_label_outlined), tooltip: '新建标签', onPressed: _createTag),
+          IconButton(icon: const Icon(Icons.bar_chart), tooltip: '库统计', onPressed: _showDashboard),
           IconButton(icon: const Icon(Icons.home), tooltip: '根目录', onPressed: _resetToRoot),
         ],
       ),
@@ -625,6 +627,12 @@ class _LibraryPageState extends State<LibraryPage> {
                     height: 44,
                     child: ThumbnailImage(path: (f['path'] ?? '').toString()),
                   )
+                else if (_isVideo(f['ext']))
+                  SizedBox(
+                    width: 48,
+                    height: 44,
+                    child: ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true),
+                  )
                 else
                   Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 44, color: Colors.grey[700]),
                 if (isSel)
@@ -819,6 +827,49 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
+  bool _isVideo(String? ext) {
+    switch ((ext ?? '').toLowerCase()) {
+      case 'mp4':
+      case 'mkv':
+      case 'mov':
+      case 'webm':
+      case 'avi':
+      case 'flv':
+      case '3gp':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // 批量导入文件夹（递归）
+  Future<void> _importDir() async {
+    final dir = await getDirectoryPath();
+    if (dir == null || dir.isEmpty) return;
+    final result = _db.importDir(dir);
+    if (result == null) {
+      _snack('导入失败');
+    } else {
+      _snack('导入完成：成功 ${result.imported}，失败 ${result.failed}');
+    }
+    _load();
+  }
+
+  // 库内统计/仪表盘
+  Future<void> _showDashboard() async {
+    final stats = _db.stats();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('库统计'),
+        content: _DashboardContent(stats: stats),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
+        ],
+      ),
+    );
+  }
+
   Color? _colorOf(dynamic color) {
     if (color == null || color.toString().isEmpty) return null;
     try {
@@ -918,11 +969,12 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
   }
 }
 
-/// 图片缩略图：原生解码缩放后异步显示（加载中/失败显示占位）
+/// 图片/视频缩略图：原生解码缩放后异步显示（加载中/失败显示占位）
 class ThumbnailImage extends StatefulWidget {
   final String path;
+  final bool isVideo;
   final double maxSize;
-  const ThumbnailImage({super.key, required this.path, this.maxSize = 256});
+  const ThumbnailImage({super.key, required this.path, this.isVideo = false, this.maxSize = 256});
 
   @override
   State<ThumbnailImage> createState() => _ThumbnailImageState();
@@ -943,7 +995,9 @@ class _ThumbnailImageState extends State<ThumbnailImage> {
       setState(() => _loading = false);
       return;
     }
-    final j = MediaNative().makeThumbnailJson(widget.path, widget.maxSize.round());
+    final j = widget.isVideo
+        ? MediaNative().makeVideoThumbnailJson(widget.path, widget.maxSize.round())
+        : MediaNative().makeThumbnailJson(widget.path, widget.maxSize.round());
     if (!mounted) return;
     if (j == null || (j['error'] as String? ?? '').isNotEmpty) {
       setState(() => _loading = false);
@@ -992,3 +1046,54 @@ class _ThumbnailImageState extends State<ThumbnailImage> {
 }
 
 enum _SortMode { name, size, time }
+
+/// 库统计内容
+class _DashboardContent extends StatelessWidget {
+  final Map<String, dynamic>? stats;
+  const _DashboardContent({this.stats});
+
+  String _size(dynamic v) {
+    final n = (v is int) ? v : (v?.toInt() ?? 0);
+    if (n < 1024) return '$n B';
+    if (n < 1048576) return '${(n / 1024).toStringAsFixed(1)} KB';
+    if (n < 1073741824) return '${(n / 1048576).toStringAsFixed(1)} MB';
+    return '${(n / 1073741824).toStringAsFixed(1)} GB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (stats == null) return const Text('暂无数据');
+    final s = stats!;
+    final byType = (s['byType'] as Map?) ?? {};
+    final byTag = (s['byTag'] as List?) ?? [];
+    Widget row(String k, String v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(k), Text(v, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ]),
+        );
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          row('文件数', '${s['files'] ?? 0}'),
+          row('目录数', '${s['dirs'] ?? 0}'),
+          row('总大小', _size(s['size'])),
+          const Divider(),
+          const Text('按类型', style: TextStyle(fontWeight: FontWeight.bold)),
+          row('图片', '${byType['image'] ?? 0}'),
+          row('视频', '${byType['video'] ?? 0}'),
+          row('音频', '${byType['audio'] ?? 0}'),
+          row('文档', '${byType['doc'] ?? 0}'),
+          row('其他', '${byType['other'] ?? 0}'),
+          if (byTag.isNotEmpty) ...[
+            const Divider(),
+            const Text('按标签', style: TextStyle(fontWeight: FontWeight.bold)),
+            for (final t in byTag)
+              row((t['name'] ?? '').toString(), '${t['count'] ?? 0}'),
+          ],
+        ],
+      ),
+    );
+  }
+}

@@ -141,27 +141,16 @@ char *media_decode_image_buffer(const unsigned char *data, int len) {
     return decode_image_bytes(data, len);
 }
 
-// 生成图片缩略图：解码并用盒式采样缩放到 max_size 内，返回小尺寸 RGBA(base64)
-char *media_make_thumbnail(const char *path, int max_size) {
+// 把 RGBA 图像盒式采样缩放到 max_size 内并 base64 编码为 JSON
+static char *thumb_to_json(const unsigned char *img, int w, int h, int max_size) {
     if (max_size <= 0) max_size = 256;
-    int len = 0;
-    unsigned char *data = read_file_bytes(path, &len);
-    if (!data) return strdup_std("{\"error\":\"read failed\",\"base64\":\"\",\"width\":0,\"height\":0}");
-    int w = 0, h = 0, comp = 0;
-    unsigned char *img = stbi_load_from_memory(data, len, &w, &h, &comp, 4);
-    free(data);
-    if (!img || w <= 0 || h <= 0) {
-        if (img) stbi_image_free(img);
-        return strdup_std("{\"error\":\"decode\",\"base64\":\"\",\"width\":0,\"height\":0}");
-    }
     int m = w > h ? w : h;
     float scale = 1.0f;
     if (m > max_size) scale = (float)max_size / (float)m;
     int tw = (int)(w * scale); if (tw < 1) tw = 1;
     int th = (int)(h * scale); if (th < 1) th = 1;
     unsigned char *thumb = (unsigned char *)malloc((size_t)tw * th * 4);
-    if (!thumb) { stbi_image_free(img); return strdup_std("{\"error\":\"alloc\",\"base64\":\"\",\"width\":0,\"height\":0}"); }
-    // 盒式采样（平均 2x2 块，简单近似）
+    if (!thumb) return strdup_std("{\"error\":\"alloc\",\"base64\":\"\",\"width\":0,\"height\":0}");
     for (int y = 0; y < th; y++) {
         for (int x = 0; x < tw; x++) {
             int sx0 = (int)((x) / scale), sx1 = (int)((x + 1) / scale);
@@ -180,7 +169,6 @@ char *media_make_thumbnail(const char *path, int max_size) {
             o[2] = (unsigned char)(b / cnt); o[3] = (unsigned char)(a / cnt);
         }
     }
-    stbi_image_free(img);
     int b64_len = 0;
     char *b64 = base64_encode(thumb, tw * th * 4, &b64_len);
     free(thumb);
@@ -191,6 +179,53 @@ char *media_make_thumbnail(const char *path, int max_size) {
     snprintf(out, out_len, "{\"error\":\"\",\"base64\":\"%s\",\"width\":%d,\"height\":%d}", b64, tw, th);
     free(b64);
     return out;
+}
+
+// 生成图片缩略图
+char *media_make_thumbnail(const char *path, int max_size) {
+    int len = 0;
+    unsigned char *data = read_file_bytes(path, &len);
+    if (!data) return strdup_std("{\"error\":\"read failed\",\"base64\":\"\",\"width\":0,\"height\":0}");
+    int w = 0, h = 0, comp = 0;
+    unsigned char *img = stbi_load_from_memory(data, len, &w, &h, &comp, 4);
+    free(data);
+    if (!img || w <= 0 || h <= 0) {
+        if (img) stbi_image_free(img);
+        return strdup_std("{\"error\":\"decode\",\"base64\":\"\",\"width\":0,\"height\":0}");
+    }
+    char *out = thumb_to_json(img, w, h, max_size);
+    stbi_image_free(img);
+    return out;
+}
+
+// 生成视频封面：解码第一帧并缩略
+char *media_make_video_thumbnail(const char *path, int max_size) {
+    int flen = 0;
+    unsigned char *fdata = read_file_bytes(path, &flen);
+    if (!fdata) return strdup_std("{\"error\":\"read\",\"base64\":\"\",\"width\":0,\"height\":0}");
+    void *h = media_video_open(fdata, flen);
+    free(fdata);
+    if (!h) return strdup_std("{\"error\":\"open\",\"base64\":\"\",\"width\":0,\"height\":0}");
+    char *info = media_video_get_info(h);
+    int w = 0, hgt = 0;
+    const char *p = strstr(info, "\"width\":");
+    if (p) w = atoi(p + 8);
+    p = strstr(info, "\"height\":");
+    if (p) hgt = atoi(p + 9);
+    media_free_string(info);
+    char *result = strdup_std("{\"error\":\"no frame\",\"base64\":\"\",\"width\":0,\"height\":0}");
+    if (w > 0 && hgt > 0) {
+        unsigned char *rgba = (unsigned char *)malloc((size_t)w * hgt * 4);
+        int cw = 0, chh = 0;
+        double ts = 0;
+        int r = media_video_next_frame_rgba(h, rgba, w * hgt * 4, &cw, &chh, &ts);
+        if (r == 1 && cw > 0 && chh > 0 && cw <= w && chh <= hgt) {
+            result = thumb_to_json(rgba, cw, chh, max_size);
+        }
+        free(rgba);
+    }
+    media_video_close(h);
+    return result;
 }
 
 // ============================================================

@@ -35,6 +35,12 @@ char *db_list_all(void);
 // 按名称/扩展名模糊搜索库内文件。
 char *db_search(const char *query);
 
+// 批量导入文件夹（递归导入其中文件）。返回 JSON：{"error":"","imported":n,"failed":n}
+char *db_import_dir(const char *dir, const char *default_tags);
+
+// 库内统计。返回 JSON：files/dirs/size/byType/byTag。
+char *db_stats(void);
+
 // 库内新建目录。返回目录记录 JSON。
 char *db_mkdir(const char *name, int parent_id);
 

@@ -20,6 +20,14 @@ typedef DbListDart = Pointer<Utf8> Function(int);
 typedef DbListAllNative = Pointer<Utf8> Function();
 typedef DbListAllDart = Pointer<Utf8> Function();
 
+// char* db_import_dir(const char* dir, const char* default_tags)
+typedef DbImportDirNative = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
+typedef DbImportDirDart = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
+
+// char* db_stats(void)
+typedef DbStatsNative = Pointer<Utf8> Function();
+typedef DbStatsDart = Pointer<Utf8> Function();
+
 // char* db_search(const char* query)
 typedef DbSearchNative = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef DbSearchDart = Pointer<Utf8> Function(Pointer<Utf8>);
@@ -89,6 +97,8 @@ class DatabaseNative {
   late final DbImportDart dbImportFile;
   late final DbListDart dbListFiles;
   late final DbListAllDart dbListAll;
+  late final DbImportDirDart dbImportDir;
+  late final DbStatsDart dbStats;
   late final DbSearchDart dbSearch;
   late final DbMkdirDart dbMkdir;
   late final DbMoveDart dbMove;
@@ -120,6 +130,8 @@ class DatabaseNative {
     dbImportFile = _lib.lookupFunction<DbImportNative, DbImportDart>('db_import_file');
     dbListFiles = _lib.lookupFunction<DbListNative, DbListDart>('db_list_files');
     dbListAll = _lib.lookupFunction<DbListAllNative, DbListAllDart>('db_list_all');
+    dbImportDir = _lib.lookupFunction<DbImportDirNative, DbImportDirDart>('db_import_dir');
+    dbStats = _lib.lookupFunction<DbStatsNative, DbStatsDart>('db_stats');
     dbSearch = _lib.lookupFunction<DbSearchNative, DbSearchDart>('db_search');
     dbMkdir = _lib.lookupFunction<DbMkdirNative, DbMkdirDart>('db_mkdir');
     dbMove = _lib.lookupFunction<DbMoveNative, DbMoveDart>('db_move');
@@ -192,6 +204,21 @@ class DatabaseNative {
       malloc.free(qp);
     }
   }
+
+  ({int imported, int failed})? importDir(String dir, [String defaultTags = '']) {
+    final dp = dir.toNativeUtf8();
+    final tp = defaultTags.toNativeUtf8();
+    try {
+      final j = _call(() => dbImportDir(dp, tp));
+      if (_err(j) != null) return null;
+      return (imported: (j?['imported'] as int?) ?? 0, failed: (j?['failed'] as int?) ?? 0);
+    } finally {
+      malloc.free(dp);
+      malloc.free(tp);
+    }
+  }
+
+  Map<String, dynamic>? stats() => _call(() => dbStats());
 
   List<Map<String, dynamic>> listAll() {
     final j = _call(() => dbListAll());
