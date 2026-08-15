@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <climits>
 // 内置哈希/加密实现（MD5/SHA1/SHA256/SHA512/CRC32/AES-256-CBC），
 // 替代 OpenSSL 与 zlib，实现全平台无外部依赖
 #include "crypto.h"
@@ -575,7 +576,7 @@ extern "C" int file_ops_link(const char *oldpath, const char *newpath,
 }
 
 // Function: realpath() - from Syscall.kt:215
-static char g_realpath_buffer[1024];
+static char g_realpath_buffer[PATH_MAX];
 extern "C" const char* file_ops_realpath(const char *path) {
     char *result = realpath(path, g_realpath_buffer);
     if (result) return g_realpath_buffer;
