@@ -150,7 +150,9 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.folder_off, size: 64, color: Colors.grey),
+              Icon(Icons.folder_off,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(height: 16),
               const Text(
                 '需要存储权限',

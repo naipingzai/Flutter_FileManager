@@ -198,7 +198,9 @@ class _LibraryPageState extends State<LibraryPage> {
                           color: c,
                           shape: BoxShape.circle,
                           border: colorCtr.value == c.toARGB32().toRadixString(16).padLeft(8, '0')
-                              ? Border.all(color: Colors.black, width: 2)
+                              ? Border.all(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                  width: 2)
                               : null,
                         ),
                       ),

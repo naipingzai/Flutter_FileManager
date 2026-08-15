@@ -256,22 +256,22 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                           width: 120,
                           height: 120,
                           decoration: BoxDecoration(
-                            color: Colors.deepPurple.shade50,
+                            color: Theme.of(context).colorScheme.secondaryContainer,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.audiotrack,
                                 size: 48,
-                                color: Colors.deepPurple,
+                                color: Theme.of(context).colorScheme.onSecondaryContainer,
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 ext,
                                 style: TextStyle(
-                                  color: Colors.deepPurple.shade700,
+                                  color: Theme.of(context).colorScheme.onSecondaryContainer,
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -377,7 +377,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                         Text(
                           '已通过 APP 内部 FFmpeg 解码 + 平台层音频输出播放',
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -394,7 +394,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),

@@ -350,12 +350,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 ? RawImage(image: _currentFrame, fit: BoxFit.contain)
                 : Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.movie, size: 64, color: Colors.grey),
-                      SizedBox(height: 8),
-                      Text(
+                    children: [
+                      Icon(Icons.movie, size: 64, color: Colors.white54),
+                      const SizedBox(height: 8),
+                      const Text(
                         '解码中...',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: Colors.white70),
                       ),
                     ],
                   ),
@@ -383,7 +383,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       onChanged: (v) {
                         if (_duration > 0) _seek(v * _duration);
                       },
-                      activeColor: Colors.blue,
+                      activeColor: Theme.of(context).colorScheme.primary,
                       inactiveColor: Colors.white24,
                     ),
                   ),

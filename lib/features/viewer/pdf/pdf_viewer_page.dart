@@ -79,7 +79,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(k, style: const TextStyle(color: Colors.grey)),
+            Text(k, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             Text(v, style: const TextStyle(fontWeight: FontWeight.w500)),
           ],
         ),
