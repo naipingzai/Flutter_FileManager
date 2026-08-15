@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/native/media_ffi.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
+import 'package:flutter_file_manager/features/library/widgets/glass.dart';
 import 'package:flutter_file_manager/features/viewer/audio/audio_player_page.dart';
 import 'package:flutter_file_manager/features/viewer/csv/csv_viewer_page.dart';
 import 'package:flutter_file_manager/features/viewer/ebook/ebook_viewer_page.dart';
@@ -40,6 +41,10 @@ class _LibraryPageState extends State<LibraryPage> {
   _SortMode _sort = _SortMode.name;
   final TextEditingController _searchCtrl = TextEditingController();
 
+  // 移动端布局：底部导航页 + 类型分类（类型≠标签）
+  int _navIndex = 0; // 0=文件库 1=标签 2=更多
+  String _category = '全部'; // 全部/图片/视频/音频/文档/压缩包/最近
+
   @override
   void initState() {
     super.initState();
@@ -63,8 +68,33 @@ class _LibraryPageState extends State<LibraryPage> {
       } else {
         _files = _db.listFiles(_currentParent);
       }
+      // 类型分类过滤（类型≠标签）
+      if (_category != '全部' && _category != '最近') {
+        _files = _files.where((f) => _categoryOf(f['ext']) == _category).toList();
+      } else if (_category == '最近') {
+        _files = _db.listAll()
+            .where((f) => (f['isDir'] ?? 0) == 0)
+            .toList()
+          ..sort((a, b) => ((b['importTime'] ?? 0) as int)
+              .compareTo((a['importTime'] ?? 0) as int));
+      }
       _sortFiles();
     });
+  }
+
+  String _categoryOf(String? ext) {
+    final e = (ext ?? '').toLowerCase();
+    const img = {'png','jpg','jpeg','gif','webp','bmp','tiff','ico','heic','avif'};
+    const vid = {'mp4','mkv','mov','webm','avi','flv','3gp','m4v'};
+    const aud = {'mp3','wav','flac','aac','ogg','m4a','opus'};
+    const doc = {'pdf','doc','docx','xls','xlsx','ppt','pptx','odt','ods','csv','txt','md'};
+    const arc = {'zip','7z','rar','tar','gz','bz2'};
+    if (img.contains(e)) return '图片';
+    if (vid.contains(e)) return '视频';
+    if (aud.contains(e)) return '音频';
+    if (doc.contains(e)) return '文档';
+    if (arc.contains(e)) return '压缩包';
+    return '其他';
   }
 
   void _sortFiles() {
@@ -352,96 +382,261 @@ class _LibraryPageState extends State<LibraryPage> {
     _load();
   }
 
-  void _resetToRoot() {
-    setState(() {
-      _pathStack.clear();
-      _currentParent = 0;
-      _filterTagId = null;
-    });
-    _load();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: _searching
-            ? TextField(
-                controller: _searchCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(hintText: '搜索库内文件...', border: InputBorder.none),
-                onChanged: (_) => _load(),
+    return Glass.background(
+      Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: Glass.appBar(
+          context,
+          title: _searching
+              ? TextField(
+                  controller: _searchCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: '搜索库内文件...',
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (_) => _load(),
+                )
+              : Text(_filterTagId != null
+                  ? '标签: ${_tagName(_filterTagId)}'
+                  : _navIndex == 0
+                      ? _currentPathText
+                      : _navIndex == 1
+                          ? '标签'
+                          : '更多'),
+          leading: _navIndex == 0
+              ? (_searching
+                  ? IconButton(icon: const Icon(Icons.close), onPressed: () {
+                      setState(() {
+                        _searching = false;
+                        _searchCtrl.clear();
+                      });
+                      _load();
+                    })
+                  : (_pathStack.isNotEmpty
+                      ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
+                      : null))
+              : null,
+          actions: [
+            if (_navIndex == 0) ...[
+              IconButton(
+                icon: Icon(_searching ? Icons.search_off : Icons.search),
+                onPressed: () => setState(() {
+                  _searching = !_searching;
+                  if (!_searching) {
+                    _searchCtrl.clear();
+                    _load();
+                  }
+                }),
+              ),
+              IconButton(
+                icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
+                onPressed: () => setState(() => _grid = !_grid),
+              ),
+              PopupMenuButton<_SortMode>(
+                icon: const Icon(Icons.sort),
+                onSelected: (m) => setState(() {
+                  _sort = m;
+                  _sortFiles();
+                }),
+                itemBuilder: (_) => const [
+                  CheckedPopupMenuItem(value: _SortMode.name, child: Text('按名称')),
+                  CheckedPopupMenuItem(value: _SortMode.size, child: Text('按大小')),
+                  CheckedPopupMenuItem(value: _SortMode.time, child: Text('按导入时间')),
+                ],
+              ),
+            ],
+          ],
+        ),
+        body: IndexedStack(
+          index: _navIndex,
+          children: [
+            _buildLibraryTab(),
+            _buildTagsTab(),
+            _buildMoreTab(),
+          ],
+        ),
+        floatingActionButton: _navIndex == 0 && !_selecting
+            ? FloatingActionButton(
+                backgroundColor: Colors.blue.shade600,
+                foregroundColor: Colors.white,
+                onPressed: _import,
+                child: const Icon(Icons.add),
               )
-            : Text(_filterTagId != null ? '标签: ${_tagName(_filterTagId)}' : _currentPathText),
-        leading: _searching
-            ? IconButton(icon: const Icon(Icons.close), onPressed: () {
-                setState(() {
-                  _searching = false;
-                  _searchCtrl.clear();
-                });
-                _load();
-              })
-            : (_pathStack.isNotEmpty
-                ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _goBack)
-                : null),
-        actions: [
-          IconButton(
-            icon: Icon(_searching ? Icons.search_off : Icons.search),
-            tooltip: '搜索',
-            onPressed: () => setState(() {
-              _searching = !_searching;
-              if (!_searching) {
-                _searchCtrl.clear();
-                _load();
-              }
-            }),
-          ),
-          IconButton(
-            icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
-            tooltip: _grid ? '列表视图' : '网格视图',
-            onPressed: () => setState(() => _grid = !_grid),
-          ),
-          PopupMenuButton<_SortMode>(
-            icon: const Icon(Icons.sort),
-            tooltip: '排序',
-            onSelected: (m) => setState(() {
-              _sort = m;
-              _sortFiles();
-            }),
-            itemBuilder: (_) => [
-              CheckedPopupMenuItem(
-                value: _SortMode.name,
-                checked: _sort == _SortMode.name,
-                child: const Text('按名称'),
+            : null,
+        bottomNavigationBar: _selecting
+            ? _buildSelectionBar()
+            : Glass.bottomNav(
+                current: _navIndex,
+                onChanged: (i) => setState(() => _navIndex = i),
+                items: const [
+                  (icon: Icons.folder_outlined, active: Icons.folder, label: '文件库'),
+                  (icon: Icons.label_outline, active: Icons.label, label: '标签'),
+                  (icon: Icons.more_horiz, active: Icons.more_horiz, label: '更多'),
+                ],
               ),
-              CheckedPopupMenuItem(
-                value: _SortMode.size,
-                checked: _sort == _SortMode.size,
-                child: const Text('按大小'),
+      ),
+    );
+  }
+
+  Widget _buildLibraryTab() {
+    return Column(
+      children: [
+        _buildCategoryBar(),
+        _buildTagBar(),
+        const SizedBox(height: 4),
+        Expanded(child: _buildFileList()),
+      ],
+    );
+  }
+
+  /// 类型分类（类型≠标签）
+  Widget _buildCategoryBar() {
+    const cats = ['全部', '图片', '视频', '音频', '文档', '压缩包', '最近'];
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        children: [
+          for (final c in cats)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Glass.box(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                radius: 14,
+                child: InkWell(
+                  onTap: () => setState(() {
+                    _category = c;
+                    _filterTagId = null;
+                    _load();
+                  }),
+                  child: Center(
+                    child: Text(
+                      c,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _category == c
+                            ? Colors.blue.shade700
+                            : Colors.black87,
+                        fontWeight: _category == c ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              CheckedPopupMenuItem(
-                value: _SortMode.time,
-                checked: _sort == _SortMode.time,
-                child: const Text('按导入时间'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 标签页（重构：颜色 + 计数 + 点按过滤）
+  Widget _buildTagsTab() {
+    final tags = _tags;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Glass.box(
+          child: Row(
+            children: [
+              Icon(Icons.new_label_outlined, color: Colors.blue.shade700),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('标签（用户自定义）', style: TextStyle(fontWeight: FontWeight.w600))),
+              TextButton.icon(
+                onPressed: _createTag,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('新建'),
               ),
             ],
           ),
-          IconButton(icon: const Icon(Icons.add), tooltip: '导入文件', onPressed: _import),
-          IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: '导入文件夹', onPressed: _importDir),
-          IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: '新建目录', onPressed: _mkdir),
-          IconButton(icon: const Icon(Icons.new_label_outlined), tooltip: '新建标签', onPressed: _createTag),
-          IconButton(icon: const Icon(Icons.bar_chart), tooltip: '库统计', onPressed: _showDashboard),
-          IconButton(icon: const Icon(Icons.home), tooltip: '根目录', onPressed: _resetToRoot),
-        ],
+        ),
+        const SizedBox(height: 12),
+        for (final t in tags)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Glass.box(
+              onTap: () {
+                setState(() {
+                  _filterTagId = t['id'] as int;
+                  _navIndex = 0;
+                  _category = '全部';
+                });
+                _load();
+              },
+              child: Row(
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: _colorOf(t['color']) ?? Colors.grey,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(t['name'].toString(), style: const TextStyle(fontSize: 15)),
+                  ),
+                  Text('${t['count'] ?? 0} 个',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  IconButton(
+                    icon: const Icon(Icons.more_vert, size: 18),
+                    onPressed: () => _tagMenu(t),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 更多页：导入入口 + 说明
+  Widget _buildMoreTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _moreCard(Icons.add, '导入文件', '从系统选择文件导入到文件库', _import),
+        _moreCard(Icons.create_new_folder, '导入文件夹', '递归导入整个文件夹', _importDir),
+        _moreCard(Icons.folder_special, '新建目录', '在文件库内新建目录', _mkdir),
+        _moreCard(Icons.bar_chart, '库统计', '查看文件数/大小/类型统计', _showDashboard),
+        const SizedBox(height: 24),
+        Center(
+          child: Text(
+            '导入式文件管理 · 数据库 + 标签系统',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _moreCard(IconData icon, String title, String sub, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Glass.box(
+        onTap: onTap,
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.blue.shade700),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(sub, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
       ),
-      body: Column(
-        children: [
-          _buildTagBar(),
-          const Divider(height: 1),
-          Expanded(child: _buildFileList()),
-        ],
-      ),
-      bottomNavigationBar: _selecting ? _buildSelectionBar() : null,
     );
   }
 
@@ -617,21 +812,28 @@ class _LibraryPageState extends State<LibraryPage> {
       leading = Icon(_typeIcon(f['ext']), size: 32, color: Colors.grey[600]);
     }
 
-    return ListTile(
-      leading: leading,
-      title: Text(
-        f['name'].toString(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Glass.box(
+        padding: EdgeInsets.zero,
+        radius: 14,
+        child: ListTile(
+          leading: leading,
+          title: Text(
+            f['name'].toString(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: subtitle,
+          trailing: trailing,
+          selected: isSel,
+          onLongPress: () => setState(() {
+            _selecting = true;
+            _toggleSelect(id);
+          }),
+          onTap: () => _onTileTap(f, isDir, id),
+        ),
       ),
-      subtitle: subtitle,
-      trailing: trailing,
-      selected: isSel,
-      onLongPress: () => setState(() {
-        _selecting = true;
-        _toggleSelect(id);
-      }),
-      onTap: () => _onTileTap(f, isDir, id),
     );
   }
 
@@ -639,18 +841,15 @@ class _LibraryPageState extends State<LibraryPage> {
     final id = f['id'] as int;
     final isDir = (f['isDir'] ?? 0) == 1;
     final isSel = _selected.contains(id);
-    return InkWell(
+    return GestureDetector(
       onLongPress: () => setState(() {
         _selecting = true;
         _toggleSelect(id);
       }),
-      onTap: () => _onTileTap(f, isDir, id),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-          border: isSel ? Border.all(color: Colors.blue, width: 2) : null,
-        ),
+      child: Glass.box(
+        padding: const EdgeInsets.all(8),
+        radius: 14,
+        onTap: () => _onTileTap(f, isDir, id),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -658,14 +857,14 @@ class _LibraryPageState extends State<LibraryPage> {
               children: [
                 if (_isImage(f['ext']))
                   SizedBox(
-                    width: 48,
-                    height: 44,
+                    width: 56,
+                    height: 52,
                     child: ThumbnailImage(path: (f['path'] ?? '').toString()),
                   )
                 else if (_isVideo(f['ext']))
                   SizedBox(
-                    width: 48,
-                    height: 44,
+                    width: 56,
+                    height: 52,
                     child: ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true),
                   )
                 else
@@ -679,14 +878,12 @@ class _LibraryPageState extends State<LibraryPage> {
               ],
             ),
             const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                f['name'].toString(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12),
-              ),
+            Text(
+              f['name'].toString(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12),
             ),
           ],
         ),
