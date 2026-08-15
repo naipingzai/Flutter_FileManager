@@ -317,6 +317,22 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
+  /// 导出文件到系统选定位置
+  Future<void> _exportFiles(List<int> ids) async {
+    final names = ids.map((id) {
+      final f = _db.listAll().where((e) => e['id'] == id).firstOrNull;
+      return f?['name']?.toString() ?? 'file';
+    }).toList();
+    for (var i = 0; i < ids.length; i++) {
+      final dest = await getSaveLocation(suggestedName: names[i]);
+      if (dest == null) return;
+      final err = _db.exportFile(ids[i], dest.path);
+      if (err != null) _snack('导出失败: $err');
+    }
+    if (ids.length > 1) _snack('已导出 ${ids.length} 个文件');
+    setState(() => _selected.clear());
+  }
+
   // ---------- 目录导航 ----------
   void _enterDir(Map<String, dynamic> dir) {
     setState(() {
@@ -716,6 +732,14 @@ class _LibraryPageState extends State<LibraryPage> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.upload_outlined),
+              title: const Text('导出'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _exportFiles([id]);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.drive_file_move_outlined),
               title: const Text('移动到文件夹'),
               onTap: () {
@@ -793,6 +817,7 @@ class _LibraryPageState extends State<LibraryPage> {
             IconButton(icon: const Icon(Icons.sell_outlined), tooltip: '加标签', onPressed: _addTagsToSelected),
             IconButton(icon: const Icon(Icons.sell), tooltip: '移除标签', onPressed: _removeTagsFromSelected),
             IconButton(icon: const Icon(Icons.drive_file_move_outlined), tooltip: '移动', onPressed: () => _moveToFolder(_selected.toList())),
+            IconButton(icon: const Icon(Icons.upload_outlined), tooltip: '导出', onPressed: () => _exportFiles(_selected.toList())),
             IconButton(icon: const Icon(Icons.delete_outline), tooltip: '删除', onPressed: () => _deleteFiles(_selected.toList())),
             IconButton(icon: const Icon(Icons.close), tooltip: '取消', onPressed: () => setState(() {
               _selecting = false;

@@ -48,6 +48,10 @@ typedef DbRenameDart = Pointer<Utf8> Function(int, Pointer<Utf8>);
 typedef DbDeleteNative = Pointer<Utf8> Function(Int32);
 typedef DbDeleteDart = Pointer<Utf8> Function(int);
 
+// char* db_export_file(int file_id, const char* dest)
+typedef DbExportNative = Pointer<Utf8> Function(Int32, Pointer<Utf8>);
+typedef DbExportDart = Pointer<Utf8> Function(int, Pointer<Utf8>);
+
 // char* db_tag_list(void)
 typedef DbTagListNative = Pointer<Utf8> Function();
 typedef DbTagListDart = Pointer<Utf8> Function();
@@ -104,6 +108,7 @@ class DatabaseNative {
   late final DbMoveDart dbMove;
   late final DbRenameDart dbRename;
   late final DbDeleteDart dbDelete;
+  late final DbExportDart dbExportFile;
   late final DbTagListDart dbTagList;
   late final DbTagCountsDart dbTagCounts;
   late final DbTagRenameDart dbTagRename;
@@ -137,6 +142,7 @@ class DatabaseNative {
     dbMove = _lib.lookupFunction<DbMoveNative, DbMoveDart>('db_move');
     dbRename = _lib.lookupFunction<DbRenameNative, DbRenameDart>('db_rename');
     dbDelete = _lib.lookupFunction<DbDeleteNative, DbDeleteDart>('db_delete');
+    dbExportFile = _lib.lookupFunction<DbExportNative, DbExportDart>('db_export_file');
     dbTagList = _lib.lookupFunction<DbTagListNative, DbTagListDart>('db_tag_list');
     dbTagCounts = _lib.lookupFunction<DbTagCountsNative, DbTagCountsDart>('db_tag_counts');
     dbTagRename = _lib.lookupFunction<DbTagRenameNative, DbTagRenameDart>('db_tag_rename');
@@ -249,6 +255,15 @@ class DatabaseNative {
   }
 
   String? delete(int fileId) => _err(_call(() => dbDelete(fileId)));
+
+  String? exportFile(int fileId, String dest) {
+    final dp = dest.toNativeUtf8();
+    try {
+      return _err(_call(() => dbExportFile(fileId, dp)));
+    } finally {
+      malloc.free(dp);
+    }
+  }
 
   List<Map<String, dynamic>> tagList() {
     final j = _call(() => dbTagList());

@@ -53,6 +53,9 @@ char *db_rename(int file_id, const char *name);
 // 逻辑删除（deleted=1）。
 char *db_delete(int file_id);
 
+// 导出：把内部文件复制到 dest（系统位置）。返回 JSON：{"error":"","path":"..."}
+char *db_export_file(int file_id, const char *dest);
+
 // 所有标签列表。
 char *db_tag_list(void);
 

@@ -68,6 +68,8 @@ class DatabaseService {
   String? rename(int fileId, String name) => _db.rename(fileId, name);
   String? delete(int fileId) => _db.delete(fileId);
 
+  String? exportFile(int fileId, String dest) => _db.exportFile(fileId, dest);
+
   // ---- 标签 ----
 
   List<Map<String, dynamic>> tags() => _db.tagList();

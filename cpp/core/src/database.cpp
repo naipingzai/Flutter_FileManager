@@ -425,7 +425,6 @@ char *db_rename(int file_id, const char *name) {
 }
 
 char *db_delete(int file_id) {
-    // 先取内部路径，删除磁盘副本（仅文件，非目录）
     sqlite3_stmt *sel;
     std::string ipath;
     if (sqlite3_prepare_v2(g_db, "SELECT internal_path,is_dir FROM files WHERE id=?", -1, &sel, nullptr) == SQLITE_OK) {
@@ -446,6 +445,30 @@ char *db_delete(int file_id) {
         sqlite3_step(st); sqlite3_finalize(st);
     }
     return strdup("{\"error\":\"\"}");
+}
+
+char *db_export_file(int file_id, const char *dest) {
+    if (!dest || !*dest) return strdup("{\"error\":\"no dest\"}");
+    std::string ipath;
+    sqlite3_stmt *sel;
+    if (sqlite3_prepare_v2(g_db, "SELECT internal_path,is_dir FROM files WHERE id=?", -1, &sel, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(sel, 1, file_id);
+        if (sqlite3_step(sel) == SQLITE_ROW) {
+            const unsigned char *p = sqlite3_column_text(sel, 0);
+            int is_dir = sqlite3_column_int(sel, 1);
+            if (p && !is_dir) ipath = (const char*)p;
+        }
+        sqlite3_finalize(sel);
+    }
+    if (ipath.empty()) return strdup("{\"error\":\"not found or is dir\"}");
+    try {
+        fs::copy_file(ipath, dest, fs::copy_options::overwrite_existing);
+    } catch (...) {
+        return strdup("{\"error\":\"copy failed\"}");
+    }
+    char buf[256];
+    snprintf(buf, sizeof(buf), "{\"error\":\"\",\"path\":\"%s\"}", dest);
+    return strdup(buf);
 }
 
 char *db_tag_rename(int tag_id, const char *name) {
