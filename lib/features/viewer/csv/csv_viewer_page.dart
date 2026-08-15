@@ -39,7 +39,20 @@ class _CsvViewerPageState extends State<CsvViewerPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _rows.isEmpty
-          ? const Center(child: Text('无法解析 CSV'))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.table_rows_outlined,
+                      size: 48,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  const SizedBox(height: 12),
+                  Text('无法解析 CSV',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ],
+              ),
+            )
           : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(

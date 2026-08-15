@@ -1,14 +1,18 @@
-import 'package:flutter_file_manager/core/native/database_ffi.dart';
+import 'package:flutter_file_manager/core/database/database_dart.dart';
 import 'package:flutter_file_manager/core/native/system_ffi.dart';
 
 /// 数据库服务：导入式文件管理的核心。
 /// 所有导入的文件进入内部数据库（应用私有目录），基于 files/tags 管理。
+/// 数据库实现为纯 Dart（sqlite3 包），不再依赖 C++ database.cpp。
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
   DatabaseService._internal();
 
-  late final DatabaseNative _db = DatabaseNative();
+  /// 由应用启动时用 path_provider 设置的正确数据目录。
+  static String? dataDirOverride;
+
+  late final DatabaseDart _db = DatabaseDart();
   late final SystemNative _sys = SystemNative();
   bool _inited = false;
   late final String _dataDir;
@@ -16,7 +20,8 @@ class DatabaseService {
   String? init() {
     if (_inited) return null;
     // 数据存到应用私有目录下的 database/（files.db + files/）
-    _dataDir = '${_sys.standardDir('app_data')}/database';
+    final base = dataDirOverride ?? _sys.standardDir('app_data');
+    _dataDir = '$base/database';
     final err = _db.init(_dataDir);
     if (err == null) _inited = true;
     return err;
@@ -64,48 +69,96 @@ class DatabaseService {
     return _db.mkdir(name, parentId);
   }
 
-  String? move(int fileId, int newParentId) => _db.move(fileId, newParentId);
-  String? rename(int fileId, String name) => _db.rename(fileId, name);
-  String? delete(int fileId) => _db.delete(fileId);
+  String? move(int fileId, int newParentId) {
+    init();
+    return _db.move(fileId, newParentId);
+  }
+
+  String? rename(int fileId, String name) {
+    init();
+    return _db.rename(fileId, name);
+  }
+
+  String? delete(int fileId) {
+    init();
+    return _db.delete(fileId);
+  }
 
   List<Map<String, dynamic>> listDeleted() {
     init();
     return _db.listDeleted();
   }
 
-  String? restore(int fileId) => _db.restore(fileId);
+  String? restore(int fileId) {
+    init();
+    return _db.restore(fileId);
+  }
 
-  String? purge(int fileId) => _db.purge(fileId);
+  String? purge(int fileId) {
+    init();
+    return _db.purge(fileId);
+  }
 
-  String? emptyTrash() => _db.emptyTrash();
+  String? emptyTrash() {
+    init();
+    return _db.emptyTrash();
+  }
 
-  String? exportFile(int fileId, String dest) => _db.exportFile(fileId, dest);
+  String? exportFile(int fileId, String dest) {
+    init();
+    return _db.exportFile(fileId, dest);
+  }
 
   // ---- 标签 ----
 
-  List<Map<String, dynamic>> tags() => _db.tagList();
+  List<Map<String, dynamic>> tags() {
+    init();
+    return _db.tagList();
+  }
 
-  List<Map<String, dynamic>> tagCounts() => _db.tagCounts();
+  List<Map<String, dynamic>> tagCounts() {
+    init();
+    return _db.tagCounts();
+  }
 
-  String? renameTag(int tagId, String name) =>
-      _db.tagRename(tagId, name);
+  String? renameTag(int tagId, String name) {
+    init();
+    return _db.tagRename(tagId, name);
+  }
 
-  String? tagColor(int tagId, String color) =>
-      _db.tagColor(tagId, color);
+  String? tagColor(int tagId, String color) {
+    init();
+    return _db.tagColor(tagId, color);
+  }
 
-  Map<String, dynamic>? createTag(String name, [String color = '']) =>
-      _db.tagCreate(name, color);
+  Map<String, dynamic>? createTag(String name, [String color = '']) {
+    init();
+    return _db.tagCreate(name, color);
+  }
 
   /// 多文件批量加标签
-  int addTagsToFiles(List<int> fileIds, List<int> tagIds) =>
-      _db.tagAddToFiles(fileIds, tagIds);
+  int addTagsToFiles(List<int> fileIds, List<int> tagIds) {
+    init();
+    return _db.tagAddToFiles(fileIds, tagIds);
+  }
 
-  String? removeTagFromFile(int fileId, int tagId) =>
-      _db.tagRemoveFromFile(fileId, tagId);
+  String? removeTagFromFile(int fileId, int tagId) {
+    init();
+    return _db.tagRemoveFromFile(fileId, tagId);
+  }
 
-  String? deleteTag(int tagId) => _db.tagDelete(tagId);
+  String? deleteTag(int tagId) {
+    init();
+    return _db.tagDelete(tagId);
+  }
 
-  List<Map<String, dynamic>> filesByTag(int tagId) => _db.filesByTag(tagId);
+  List<Map<String, dynamic>> filesByTag(int tagId) {
+    init();
+    return _db.filesByTag(tagId);
+  }
 
-  List<Map<String, dynamic>> fileTags(int fileId) => _db.fileTags(fileId);
+  List<Map<String, dynamic>> fileTags(int fileId) {
+    init();
+    return _db.fileTags(fileId);
+  }
 }

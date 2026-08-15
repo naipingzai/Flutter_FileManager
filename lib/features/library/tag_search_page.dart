@@ -76,17 +76,21 @@ class _TagSearchPageState extends State<TagSearchPage> {
       body: Column(
         children: [
           // 一排横向滚动的标签筛选片（可多选）
-          SizedBox(
-            height: 56,
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: _tags.isEmpty
-                ? const Center(child: Text('暂无标签'))
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text('暂无标签',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                  )
                 : ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     children: [
                       for (final t in _tags)
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: FilterChip(
                             label: Text(t['name'].toString()),
                             selected: _selectedTags.contains(t['id']),
@@ -117,7 +121,7 @@ class _TagSearchPageState extends State<TagSearchPage> {
                 ? Center(
                     child: Text(
                       '未找到匹配文件',
-                      style: TextStyle(color: cs.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                     ),
                   )
                 : ListView.builder(
@@ -155,14 +159,28 @@ class _TagSearchPageState extends State<TagSearchPage> {
           ? null
           : Wrap(
               spacing: 4,
+              runSpacing: 4,
               children: [
-                for (final t in tags)
-                  Text(
-                    '#${t['name']}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Theme.of(context).colorScheme.secondary,
+                for (final t in tags.take(4))
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                    side: BorderSide.none,
+                    label: Text(
+                      t['name'].toString(),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSecondaryContainer,
+                          ),
                     ),
+                  ),
+                if (tags.length > 4)
+                  Text(
+                    '+${tags.length - 4}',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
               ],
             ),

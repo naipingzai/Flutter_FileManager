@@ -73,7 +73,7 @@ class _RecycleBinPageState extends State<RecycleBinPage> {
                       color: Theme.of(context).colorScheme.onSurfaceVariant),
                   const SizedBox(height: 12),
                   Text('回收站为空',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 ],
               ),
@@ -95,7 +95,8 @@ class _RecycleBinPageState extends State<RecycleBinPage> {
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                   subtitle: Text(_size(f['size'])),
                   trailing: isSel
-                      ? const Icon(Icons.check_circle, color: Colors.blue)
+                      ? Icon(Icons.check_circle,
+                          color: Theme.of(context).colorScheme.primary)
                       : null,
                   selected: isSel,
                   onTap: () {
@@ -130,6 +131,10 @@ class _RecycleBinPageState extends State<RecycleBinPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('删除'),
           ),
@@ -154,6 +159,10 @@ class _RecycleBinPageState extends State<RecycleBinPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('清空'),
           ),

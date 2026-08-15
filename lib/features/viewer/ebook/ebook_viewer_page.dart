@@ -56,7 +56,7 @@ class _EbookViewerPageState extends State<EbookViewerPage> {
                   padding: const EdgeInsets.all(16),
                   child: Text(
                     _text ?? '',
-                    style: const TextStyle(fontSize: 16, height: 1.6),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.6),
                   ),
                 ),
     );

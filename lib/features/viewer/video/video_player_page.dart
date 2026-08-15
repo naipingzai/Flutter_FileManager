@@ -312,26 +312,27 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final name = FileService.getFileName(widget.path);
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: cs.inverseSurface,
       appBar: AppBar(
-        backgroundColor: Colors.black.withValues(alpha: 0.5),
-        title: Text(name, style: const TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: cs.inverseSurface.withValues(alpha: 0.6),
+        foregroundColor: cs.onInverseSurface,
+        title: Text(name),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? Center(child: CircularProgressIndicator(color: cs.onInverseSurface))
           : _error
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error, size: 64, color: Colors.red),
+                      Icon(Icons.error_outline, size: 64, color: cs.error),
                       const SizedBox(height: 16),
                       Text(
                         _errorMsg.isEmpty ? '无法打开视频' : _errorMsg,
-                        style: const TextStyle(color: Colors.white),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: cs.onInverseSurface),
                       ),
                     ],
                   ),
@@ -341,6 +342,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   Widget _buildPlayer() {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Column(
       children: [
         // 帧显示
@@ -351,11 +354,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.movie, size: 64, color: Colors.white54),
+                      Icon(Icons.movie, size: 64, color: cs.onInverseSurface),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         '解码中...',
-                        style: TextStyle(color: Colors.white70),
+                        style: tt.bodyMedium?.copyWith(color: cs.onInverseSurface),
                       ),
                     ],
                   ),
@@ -363,7 +366,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         ),
         // 控制栏
         Container(
-          color: Colors.black87,
+          color: cs.inverseSurface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -373,7 +376,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 children: [
                   Text(
                     _formatTime(_currentTime),
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    style: tt.labelSmall?.copyWith(color: cs.onInverseSurface),
                   ),
                   Expanded(
                     child: Slider(
@@ -383,13 +386,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       onChanged: (v) {
                         if (_duration > 0) _seek(v * _duration);
                       },
-                      activeColor: Theme.of(context).colorScheme.primary,
-                      inactiveColor: Colors.white24,
+                      activeColor: cs.primary,
+                      inactiveColor: cs.onInverseSurface.withValues(alpha: 0.3),
                     ),
                   ),
                   Text(
                     _formatTime(_duration),
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    style: tt.labelSmall?.copyWith(color: cs.onInverseSurface),
                   ),
                 ],
               ),
@@ -398,7 +401,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.replay_10, color: Colors.white),
+                    icon: Icon(Icons.replay_10, color: cs.onInverseSurface),
                     onPressed: _handle == null
                         ? null
                         : () => _seek(
@@ -411,7 +414,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       _eof
                           ? Icons.replay
                           : (_playing ? Icons.pause : Icons.play_arrow),
-                      color: Colors.white,
+                      color: cs.onInverseSurface,
                       size: 48,
                     ),
                     onPressed: _handle == null
@@ -428,7 +431,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                           },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.forward_10, color: Colors.white),
+                    icon: Icon(Icons.forward_10, color: cs.onInverseSurface),
                     onPressed: _handle == null
                         ? null
                         : () => _seek(

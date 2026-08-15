@@ -28,23 +28,28 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          _sectionLabel('常规', cs, tt),
           _settingCard(
-            Icons.label_outline,
+            Icons.label_outlined,
             '默认标签名',
             '导入时自动打上的标签（默认"已导入"）',
             () => _editDefaultTag(),
           ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
           _settingCard(
-            Icons.dashboard_outlined,
+            Icons.grid_view_outlined,
             '网格视图列数',
             _gridSummary(),
             () => _editGridColumns(),
           ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
           _settingCard(
             Icons.light_mode_outlined,
             '显示设置',
@@ -56,20 +61,26 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _sectionLabel(String text, ColorScheme cs, TextTheme tt) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Text(text, style: tt.titleSmall?.copyWith(color: cs.primary)),
+    );
+  }
+
   String _gridSummary() {
     return _gridColumns == 0 ? '自动（按宽度）' : '固定 $_gridColumns 列';
   }
 
   Widget _settingCard(IconData icon, String title, String sub, VoidCallback onTap) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(sub, style: const TextStyle(fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
+    final cs = Theme.of(context).colorScheme;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      leading: Icon(icon, color: cs.onSurfaceVariant),
+      title: Text(title),
+      subtitle: Text(sub, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 

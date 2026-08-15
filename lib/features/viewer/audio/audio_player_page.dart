@@ -236,7 +236,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                 ? Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error, size: 64, color: Colors.red),
+                      Icon(Icons.error_outline,
+                          size: 64, color: Theme.of(context).colorScheme.error),
                       const SizedBox(height: 16),
                       Text(_errorMsg),
                       const SizedBox(height: 8),
@@ -270,10 +271,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                               const SizedBox(height: 4),
                               Text(
                                 ext,
-                                style: TextStyle(
+                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                                   color: Theme.of(context).colorScheme.onSecondaryContainer,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
@@ -283,10 +283,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                         // 文件名
                         Text(
                           name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge,
                           textAlign: TextAlign.center,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -320,7 +317,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                           children: [
                             Text(
                               _formatTime(current),
-                              style: const TextStyle(fontSize: 12),
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                             Expanded(
                               child: Slider(
@@ -336,7 +335,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                               duration > 0
                                   ? _formatTime(duration)
                                   : '--:--',
-                              style: const TextStyle(fontSize: 12),
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                           ],
                         ),
@@ -376,10 +377,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                         const SizedBox(height: 8),
                         Text(
                           '已通过 APP 内部 FFmpeg 解码 + 平台层音频输出播放',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                       ],
                     ),
@@ -389,13 +389,15 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   }
 
   Widget _infoRow(String label, String value) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(label, style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+          Text(value, style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
         ],
       ),
     );

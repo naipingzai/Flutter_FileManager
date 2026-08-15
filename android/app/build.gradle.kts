@@ -28,7 +28,9 @@ android {
         // C++ FFI 静态库打包为 libfileops.so
         // 仅 arm64-v8a（对应依赖仓库 FFmpeg 产物；减少 APK 体积）
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            // 仅 arm64-v8a：先清空默认 ABI，再加入 arm64，避免编出无对应 FFmpeg 库的 ABI
+            abiFilters.clear()
+            abiFilters.add("arm64-v8a")
         }
         externalNativeBuild {
             cmake {

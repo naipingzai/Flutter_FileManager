@@ -1,98 +1,121 @@
 // ignore_for_file: non_constant_identifier_names
 //
-// system_ffi - Dart FFI bindings for the native system module.
-// 所有平台信息通过 C++ 获取，Dart 不直接调用 Platform.isXxx。
+// system_ffi - 平台信息/系统路径服务（纯 Dart 实现）。
+// 用 dart:io Platform 与 path_provider 提供，不再依赖 native (FFmpeg) 层。
 
-import 'dart:convert';
-import 'dart:ffi';
+import 'dart:io';
 
-import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 
-import 'native_library.dart';
-
-// char* system_info(void)
-typedef SystemInfoNative = Pointer<Utf8> Function();
-typedef SystemInfoDart = Pointer<Utf8> Function();
-
-// char* system_standard_dir(const char* category)
-typedef SystemStandardDirNative = Pointer<Utf8> Function(Pointer<Utf8>);
-typedef SystemStandardDirDart = Pointer<Utf8> Function(Pointer<Utf8>);
-
-// void system_free_string(char* str)
-typedef SystemFreeStringNative = Void Function(Pointer<Utf8>);
-typedef SystemFreeStringDart = void Function(Pointer<Utf8>);
-
-/// system 模块统一 FFI 封装。
-/// Dart 层不做任何 Platform.isXxx 判断，所有路径/平台信息由 C++ 提供。
+/// 平台信息与标准目录查询。
+/// 接口与原 SystemNative 保持一致（osName / info / standardDir / homeDirectory /
+/// rootDirectory），但底层用 Dart 实现，无需原生库。
 class SystemNative {
   static SystemNative? _instance;
 
-  late final DynamicLibrary _lib;
-  late final SystemInfoDart _systemInfo;
-  late final SystemStandardDirDart _systemStandardDir;
-  late final SystemFreeStringDart _systemFreeString;
+  /// 应用文档目录（由 path_provider 在 main 启动时缓存；桌面用 Platform 兜底）。
+  static String? appDocumentsDir;
 
-  SystemNative._() {
-    _lib = _loadLibrary();
-    _systemInfo = _lib.lookupFunction<SystemInfoNative, SystemInfoDart>(
-      'system_info',
-    );
-    _systemStandardDir = _lib.lookupFunction<SystemStandardDirNative,
-        SystemStandardDirDart>('system_standard_dir');
-    _systemFreeString = _lib.lookupFunction<SystemFreeStringNative,
-        SystemFreeStringDart>('system_free_string');
-  }
+  SystemNative._();
 
   factory SystemNative() {
     _instance ??= SystemNative._();
     return _instance!;
   }
 
-  DynamicLibrary _loadLibrary() {
-    return loadNativeLibrary();
-  }
-
-  /// 获取完整平台信息 JSON：
-  /// {
-  ///   "os": "...", "arch": "...", "path_separator": "...",
-  ///   "user_home": "...", "root_dir": "...",
-  ///   "downloads_dir": "...", "documents_dir": "...", ...
-  /// }
+  /// 完整平台信息。
+  /// { "os", "arch", "path_separator", "user_home", "root_dir",
+  ///   "downloads_dir", "documents_dir", ... }
   Map<String, dynamic> get info {
-    final ptr = _systemInfo();
-    final str = ptr.toDartString();
-    _systemFreeString(ptr);
-    return jsonDecode(str) as Map<String, dynamic>;
+    final home = homeDirectory;
+    return {
+      'os': osName,
+      'arch': _arch,
+      'path_separator': Platform.pathSeparator,
+      'user_home': home,
+      'root_dir': rootDirectory,
+      'downloads_dir': _envDir(['DOWNLOAD', 'XDG_DOWNLOAD_DIR'], 'Downloads'),
+      'documents_dir': _envDir(['XDG_DOCUMENTS_DIR'], 'Documents'),
+      'desktop_dir': _envDir(['XDG_DESKTOP_DIR'], 'Desktop'),
+      'app_data_dir': appDocumentsDir ?? '$home/.flutter_app_data',
+    };
   }
 
-  /// 获取指定标准目录的绝对路径（返回 malloc 字符串，此处负责释放）。
-  String standardDir(String category) {
-    final cat = category.toNativeUtf8();
-    try {
-      final ptr = _systemStandardDir(cat);
-      final str = ptr.toDartString();
-      _systemFreeString(ptr);
-      return str;
-    } finally {
-      calloc.free(cat);
+  String get _arch {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return Platform.version.contains('arm64') ? 'aarch64' : 'arm';
+      default:
+        return 'x86_64';
     }
   }
 
-  /// 用户主目录
+  String _envDir(List<String> envKeys, String fallback) {
+    for (final k in envKeys) {
+      final v = Platform.environment[k];
+      if (v != null && v.isNotEmpty) return v;
+    }
+    return '$homeDirectory/$fallback';
+  }
+
+  /// 指定标准目录的绝对路径。
+  /// category: app_data / documents / downloads / home / root / cache / temp
+  String standardDir(String category) {
+    switch (category) {
+      case 'app_data':
+        return appDocumentsDir ?? '$homeDirectory/.flutter_app_data';
+      case 'documents':
+        return _envDir(['XDG_DOCUMENTS_DIR'], 'Documents');
+      case 'downloads':
+        return _envDir(['DOWNLOAD', 'XDG_DOWNLOAD_DIR'], 'Downloads');
+      case 'desktop':
+        return _envDir(['XDG_DESKTOP_DIR'], 'Desktop');
+      case 'home':
+        return homeDirectory;
+      case 'root':
+        return rootDirectory;
+      case 'cache':
+        return appDocumentsDir != null ? '$appDocumentsDir/.cache' : '${homeDirectory}/.cache';
+      case 'temp':
+        return Directory.systemTemp.path;
+      default:
+        return homeDirectory;
+    }
+  }
+
+  /// 用户主目录。
   String get homeDirectory {
-    final info = this.info;
-    return info['user_home'] as String? ?? '/';
+    final home = Platform.environment['HOME'];
+    if (home != null && home.isNotEmpty) return home;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return appDocumentsDir ?? '/data/user/0/';
+    }
+    return Platform.environment['USERPROFILE'] ?? '/';
   }
 
-  /// 根目录
+  /// 根目录。
   String get rootDirectory {
-    final info = this.info;
-    return info['root_dir'] as String? ?? '/';
+    if (defaultTargetPlatform == TargetPlatform.android) return '/';
+    final root = Platform.environment['SystemDrive'];
+    if (root != null && root.isNotEmpty) return root;
+    return '/';
   }
 
-  /// 平台名称（"windows" / "linux" / "macos" / "ios" / "android"）
+  /// 平台名称（"windows" / "linux" / "macos" / "ios" / "android"）。
   String get osName {
-    final info = this.info;
-    return info['os'] as String? ?? 'unknown';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.macOS:
+        return 'macos';
+      case TargetPlatform.windows:
+        return 'windows';
+      case TargetPlatform.linux:
+        return 'linux';
+      default:
+        return 'unknown';
+    }
   }
 }

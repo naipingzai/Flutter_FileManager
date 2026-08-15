@@ -21,10 +21,10 @@ if [[ "$PLATFORM" != "ios" && "$PLATFORM" != "macos" ]]; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CPP_DIR="${REPO_ROOT}/cpp"
+CPP_DIR="${REPO_ROOT}/native"
 BUILD_DIR="${REPO_ROOT}/build/native/${PLATFORM}"
 ARCH="${2:-arm64}"
-TP_DIR="${REPO_ROOT}/third_party/${PLATFORM}"
+TP_DIR="${REPO_ROOT}/native/third_party/${PLATFORM}"
 
 # 每次全量构建模块，避免 CMake 缓存跨平台残留
 rm -rf "${BUILD_DIR}"

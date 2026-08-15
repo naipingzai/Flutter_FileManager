@@ -33,19 +33,20 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // 媒体查看器用暗色沉浸背景（M3 语义色 inverseSurface/onInverseSurface）
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: cs.inverseSurface,
       appBar: AppBar(
-        backgroundColor: Colors.black.withValues(alpha: 0.5),
+        backgroundColor: cs.inverseSurface.withValues(alpha: 0.6),
+        foregroundColor: cs.onInverseSurface,
         title: Text(
           FileService.getFileName(
             _paths[_controller.hasClients
                 ? _controller.page?.round() ?? widget.initialIndex
                 : widget.initialIndex],
           ),
-          style: const TextStyle(color: Colors.white),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: PageView.builder(
         controller: _controller,
@@ -109,9 +110,12 @@ class _CppImageWidgetState extends State<_CppImageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const CircularProgressIndicator(color: Colors.white);
+    final cs = Theme.of(context).colorScheme;
+    if (_loading) {
+      return CircularProgressIndicator(color: cs.onInverseSurface);
+    }
     if (_error || _image == null) {
-      return const Icon(Icons.broken_image, color: Colors.white, size: 64);
+      return Icon(Icons.broken_image, color: cs.onInverseSurface, size: 64);
     }
     return RawImage(image: _image, fit: BoxFit.contain);
   }

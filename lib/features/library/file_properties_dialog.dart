@@ -126,46 +126,51 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog>
       if (_isAudio) _mediaInfoTab(null, audio: true),
     ];
     return Dialog(
-      child: SizedBox(
-        width: 380,
-        height: 480,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(
-                f['name'].toString(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 520),
+        child: SizedBox(
+          width: 400,
+          height: 520,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: Text(
+                  f['name'].toString(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
-            ),
-            TabBar(
-              controller: _tab,
-              tabs: [...baseTabs, ...extraTabs],
-            ),
-            Expanded(
-              child: TabBarView(controller: _tab, children: views),
-            ),
-          ],
+              TabBar(
+                controller: _tab,
+                tabs: [...baseTabs, ...extraTabs],
+              ),
+              Expanded(
+                child: TabBarView(controller: _tab, children: views),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _row(String k, String v) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 90,
-            child: Text(k,
-                style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            width: 80,
+            child: Text(k, style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
           ),
-          Expanded(child: Text(v, style: const TextStyle(fontWeight: FontWeight.w500))),
+          Expanded(
+            child: Text(v, style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+          ),
         ],
       ),
     );
@@ -297,7 +302,7 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog>
                 SizedBox(
                   width: 80,
                   child: Text(e.key,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 ),
                 Expanded(
@@ -305,7 +310,7 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog>
                     e.value,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
                   ),
                 ),
                 IconButton(

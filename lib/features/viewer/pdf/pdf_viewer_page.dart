@@ -45,6 +45,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final name = FileService.getFileName(widget.path);
     return Scaffold(
       appBar: AppBar(title: Text(name)),
@@ -53,14 +54,14 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           : _error != null
               ? Center(child: Text(_error!))
               : Center(
-                  child: Card(
+                  child: Card.filled(
                     margin: const EdgeInsets.all(24),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.picture_as_pdf, size: 64, color: Colors.red),
+                          Icon(Icons.picture_as_pdf, size: 64, color: cs.primary),
                           const SizedBox(height: 16),
                           Text(name, textAlign: TextAlign.center),
                           const Divider(),
@@ -74,14 +75,18 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     );
   }
 
-  Widget _row(String k, String v) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(k, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            Text(v, style: const TextStyle(fontWeight: FontWeight.w500)),
-          ],
-        ),
-      );
+  Widget _row(String k, String v) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(k, style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+          Text(v, style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
 }

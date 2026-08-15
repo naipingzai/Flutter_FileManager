@@ -52,7 +52,7 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # ============================================================
 # Native C++ 层（单一 CMake 配置，产出 common/system/file/text/media）
 # ============================================================
-set(NATIVE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../cpp")
+set(NATIVE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../native")
 add_subdirectory("${NATIVE_ROOT}" "${CMAKE_BINARY_DIR}/cpp")
 
 # Application build; see runner/CMakeLists.txt.

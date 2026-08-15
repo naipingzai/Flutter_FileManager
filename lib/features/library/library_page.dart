@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/native/media_ffi.dart';
+import 'package:flutter_file_manager/core/services/android_file_picker.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
 import 'package:flutter_file_manager/core/services/settings_service.dart';
@@ -118,16 +119,15 @@ class _LibraryPageState extends State<LibraryPage> {
 
   // ---------- 导入 ----------
   Future<void> _import() async {
-    const typeGroup = XTypeGroup(label: '任意文件', extensions: []);
-    final files = await openFiles(acceptedTypeGroups: const [typeGroup]);
-    if (files.isEmpty) return;
+    // 用原生 SAF 选文件并返回路径，避免 file_selector 读整个文件导致 OOM
+    final paths = await AndroidFilePicker.pickFiles(multiple: true);
+    if (paths.isEmpty) return;
     int ok = 0;
-    for (final f in files) {
-      final src = f.path;
+    for (final src in paths) {
       if (src.isEmpty) continue;
       if (_db.importFile(src, defaultTags: const ['已导入']) != null) ok++;
     }
-    _snack('导入完成：$ok/${files.length}，已打上标签「已导入」');
+    _snack('导入完成：$ok/${paths.length}，已打上标签「已导入」');
     _load();
   }
 
@@ -159,10 +159,7 @@ class _LibraryPageState extends State<LibraryPage> {
   Future<void> _createTag() async {
     final ctrl = TextEditingController();
     final colorCtr = ValueNotifier<String>('');
-    final colors = [
-      Colors.red, Colors.orange, Colors.amber, Colors.green,
-      Colors.teal, Colors.blue, Colors.indigo, Colors.purple, Colors.pink, Colors.brown,
-    ];
+    final colors = _tagColorOptions(context);
     final result = await showDialog<(String, String)?>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -181,24 +178,15 @@ class _LibraryPageState extends State<LibraryPage> {
                 spacing: 8,
                 children: [
                   for (final c in colors)
-                    InkWell(
-                      onTap: () {
-                        colorCtr.value = c.toARGB32().toRadixString(16).padLeft(8, '0');
+                    ChoiceChip(
+                      avatar: CircleAvatar(radius: 8, backgroundColor: c),
+                      label: const SizedBox.shrink(),
+                      selected: colorCtr.value == _argbColor(c),
+                      showCheckmark: false,
+                      onSelected: (_) {
+                        colorCtr.value = _argbColor(c);
                         setDlg(() {});
                       },
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: c,
-                          shape: BoxShape.circle,
-                          border: colorCtr.value == c.toARGB32().toRadixString(16).padLeft(8, '0')
-                              ? Border.all(
-                                  color: Theme.of(context).colorScheme.onSurface,
-                                  width: 2)
-                              : null,
-                        ),
-                      ),
                     ),
                 ],
               ),
@@ -219,6 +207,17 @@ class _LibraryPageState extends State<LibraryPage> {
       _load();
     }
   }
+
+  /// 标签可选颜色：从 colorScheme 派生（深浅色主题自适应）
+  List<Color> _tagColorOptions(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return [
+      cs.primary, cs.secondary, cs.tertiary, cs.error,
+      cs.primaryContainer, cs.secondaryContainer, cs.tertiaryContainer, cs.errorContainer,
+    ];
+  }
+
+  String _argbColor(Color c) => c.toARGB32().toRadixString(16).padLeft(8, '0');
 
   Future<void> _deleteTag(Map<String, dynamic> tag) async {
     final ok = await showDialog<bool>(
@@ -767,70 +766,28 @@ class _LibraryPageState extends State<LibraryPage> {
 
   /// M3 悬浮底栏：圆角胶囊浮于内容之上，药丸形选中指示器 + 导航项。
   Widget _buildBottomNav() {
-    final cs = Theme.of(context).colorScheme;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Material(
-          elevation: 6,
-          shadowColor: cs.shadow,
-          color: cs.surfaceContainer,
-          surfaceTintColor: cs.surfaceTint,
-          borderRadius: BorderRadius.circular(28),
-          child: SizedBox(
-            height: 68,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _navDest(0, Icons.folder_outlined, Icons.folder, '文件'),
-                _navDest(1, Icons.label_outline, Icons.label, '标签'),
-                _navDest(2, Icons.more_horiz, Icons.more_horiz, '更多'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// M3 导航目的地（药丸形选中指示器）
-  Widget _navDest(int i, IconData icon, IconData selIcon, String label) {
-    final cs = Theme.of(context).colorScheme;
-    final sel = _navIndex == i;
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () {
+    return NavigationBar(
+      selectedIndex: _navIndex,
+      onDestinationSelected: (i) {
         setState(() => _navIndex = i);
         _load();
       },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
-            decoration: BoxDecoration(
-              color: sel ? cs.secondaryContainer : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              sel ? selIcon : icon,
-              color: sel ? cs.onSecondaryContainer : cs.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: sel ? FontWeight.w600 : FontWeight.w500,
-              color: sel ? cs.onSecondaryContainer : cs.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.folder_outlined),
+          selectedIcon: Icon(Icons.folder),
+          label: '文件',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.label_outline),
+          selectedIcon: Icon(Icons.label),
+          label: '标签',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.more_horiz),
+          label: '更多',
+        ),
+      ],
     );
   }
 
@@ -880,7 +837,7 @@ class _LibraryPageState extends State<LibraryPage> {
         alignment: Alignment.center,
         child: ActionChip(
           avatar: const Icon(Icons.chevron_right, size: 16),
-          label: Text(name, style: const TextStyle(fontSize: 12)),
+          label: Text(name, style: Theme.of(context).textTheme.labelSmall),
           onPressed: onTap,
         ),
       ),
@@ -901,7 +858,7 @@ class _LibraryPageState extends State<LibraryPage> {
           children: [
             Icon(Icons.label_outline, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 12),
-            Text('还没有标签', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text('还没有标签', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 8),
             FilledButton.tonalIcon(
               onPressed: _createTag,
@@ -916,75 +873,71 @@ class _LibraryPageState extends State<LibraryPage> {
       padding: const EdgeInsets.all(16),
       children: [
         for (final t in tags)
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: CircleAvatar(radius: 6, backgroundColor: _colorOf(t['color']) ?? Theme.of(context).colorScheme.onSurfaceVariant),
-              title: Text(t['name'].toString()),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('${t['count'] ?? 0} 个', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                  IconButton(icon: const Icon(Icons.more_vert, size: 18), onPressed: () => _tagMenu(t)),
-                ],
-              ),
-              onTap: () {
-                setState(() => _activeTagId = t['id'] as int);
-                _load();
-              },
+          ListTile(
+            leading: CircleAvatar(
+              radius: 6,
+              backgroundColor: _colorOf(t['color']) ?? Theme.of(context).colorScheme.onSurfaceVariant,
             ),
+            title: Text(t['name'].toString()),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${t['count'] ?? 0} 个',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                IconButton(icon: const Icon(Icons.more_vert, size: 18), onPressed: () => _tagMenu(t)),
+              ],
+            ),
+            onTap: () {
+              setState(() => _activeTagId = t['id'] as int);
+              _load();
+            },
           ),
       ],
     );
   }
 
-  /// 更多页：导入入口 + 说明
+  /// 更多页：设置与工具入口（分组列表，避免与工具栏/溢出菜单重复的卡片堆叠）
   Widget _buildMoreTab() {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _moreCard(Icons.add, '导入文件', '从系统选择文件导入到文件库', _import),
-        _moreCard(Icons.create_new_folder, '导入文件夹', '递归导入整个文件夹', _importDir),
-        _moreCard(Icons.folder_special, '新建目录', '在文件库内新建目录', _mkdir),
-        _moreCard(Icons.bar_chart, '库统计', '查看文件数/大小/类型统计', _showDashboard),
-        _buildGridSettingCard(),
-        const SizedBox(height: 24),
-        Center(
-          child: Text(
-            '导入式文件管理 · 数据库 + 标签系统',
-            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-        ),
+        _moreSectionLabel('导入', cs, textTheme),
+        _moreCard(Icons.download_outlined, '导入文件', '从系统选择文件导入到文件库', _import),
+        _moreCard(Icons.create_new_folder_outlined, '导入文件夹', '递归导入整个文件夹', _importDir),
+        const Divider(height: 24),
+        _moreSectionLabel('管理', cs, textTheme),
+        _moreCard(Icons.create_new_folder_outlined, '新建目录', '在文件库内新建目录', _mkdir),
+        _moreCard(Icons.bar_chart_outlined, '库统计', '查看文件数/大小/类型统计', _showDashboard),
+        _moreCard(Icons.grid_view_outlined, '网格视图列数', _gridColumns == 0 ? '自动（按宽度）' : '固定 $_gridColumns 列', _pickGridColumns),
       ],
+    );
+  }
+
+  Widget _moreSectionLabel(String text, ColorScheme cs, TextTheme tt) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, bottom: 8),
+      child: Text(
+        text,
+        style: tt.titleSmall?.copyWith(color: cs.primary),
+      ),
     );
   }
 
   Widget _moreCard(IconData icon, String title, String sub, VoidCallback onTap) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(sub, style: const TextStyle(fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  Widget _buildGridSettingCard() {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(Icons.grid_view, color: Theme.of(context).colorScheme.primary),
-        title: const Text('网格视图列数', style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(
-          _gridColumns == 0 ? '自动（按宽度）' : '固定 $_gridColumns 列',
-          style: const TextStyle(fontSize: 12),
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => _pickGridColumns(),
-      ),
+    final cs = Theme.of(context).colorScheme;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: cs.onSurfaceVariant),
+      title: Text(title),
+      subtitle: Text(sub, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 
@@ -1119,14 +1072,13 @@ class _LibraryPageState extends State<LibraryPage> {
     final isDir = (f['isDir'] ?? 0) == 1;
     final isSel = _selected.contains(id);
     final scale = UiScaleScope.of(context);
-    final subtitle = (f['size'] ?? 0) > 0
-        ? Text(_size(f['size']), style: const TextStyle(fontSize: 12))
-        : null;
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     // 左侧：图片预览图 / 视频封面（方框），其余为类型图标
     Widget leading;
     if (isDir) {
-      leading = Icon(Icons.folder, size: scale.iconDp(36), color: Theme.of(context).colorScheme.onSurfaceVariant);
+      leading = Icon(Icons.folder_outlined, size: scale.iconDp(36), color: cs.onSurfaceVariant);
     } else if (_isImage(f['ext'])) {
       leading = ClipRRect(
         borderRadius: BorderRadius.circular(4),
@@ -1146,156 +1098,127 @@ class _LibraryPageState extends State<LibraryPage> {
             fit: StackFit.expand,
             children: [
               ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true),
-              const Center(child: Icon(Icons.play_circle_outline, color: Colors.white, size: 20)),
+              Center(
+                child: Icon(Icons.play_circle_outline,
+                    color: Theme.of(context).colorScheme.inverseSurface, size: 20),
+              ),
             ],
           ),
         ),
       );
     } else {
-      leading = Icon(_typeIcon(f['ext']), size: scale.iconDp(32), color: Theme.of(context).colorScheme.onSurfaceVariant);
+      leading = Icon(_typeIcon(f['ext']), size: scale.iconDp(32), color: cs.onSurfaceVariant);
     }
 
     final tags = (f['tags'] as List?) ?? const [];
-    final cs = Theme.of(context).colorScheme;
+    // M3：列表项用扁平 ListTile 结构（非 Card），选中态走 selected 语义色
     return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: scale.marginDp(16), vertical: 2),
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        color: isSel ? cs.primaryContainer : null,
-        child: InkWell(
-          onTap: () => _onTileTap(f, isDir, id),
-          onLongPress: () => _onTileLongPress(f, isDir, id),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(width: 8),
-              // 图标区：独立响应，恒为"切换选中"（design_skill 6.1/6.11）
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () {
-                    setState(() {
-                      _selecting = true;
-                      _toggleSelect(id);
-                    });
-                  },
-                  child: SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Center(child: leading),
-                        if (isSel)
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Icon(Icons.check_circle,
-                                size: 18, color: cs.primary),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              f['name'].toString(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 15),
-                            ),
-                          ),
-                          if (_selecting || isSel)
-                            Icon(
-                              isSel
-                                  ? Icons.check_circle
-                                  : Icons.circle_outlined,
-                              size: 20,
-                              color: isSel
-                                  ? cs.primary
-                                  : cs.onSurfaceVariant,
-                            )
-                          else if (!isDir)
-                            IconButton(
-                              visualDensity: VisualDensity.compact,
-                              icon: const Icon(Icons.more_vert, size: 20),
-                              onPressed: () => _onFileMenu(f),
-                            ),
-                        ],
-                      ),
-                      ?subtitle,
-                      if (tags.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        _buildTagChips(tags),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
+      padding: EdgeInsets.symmetric(horizontal: scale.marginDp(16)),
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        selected: isSel,
+        selectedTileColor: cs.secondaryContainer,
+        leading: _buildIconSelectable(leading, isSel, id, cs),
+        title: Text(
+          f['name'].toString(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.bodyLarge,
         ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if ((f['size'] ?? 0) > 0)
+              Text(
+                _size(f['size']),
+                style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            if (tags.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _buildTagChips(tags),
+            ],
+          ],
+        ),
+        trailing: _selecting || isSel
+            ? Icon(
+                isSel ? Icons.check_circle : Icons.circle_outlined,
+                size: 20,
+                color: isSel ? cs.primary : cs.onSurfaceVariant,
+              )
+            : (isDir
+                ? null
+                : IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    onPressed: () => _onFileMenu(f),
+                  )),
+        onTap: () => _onTileTap(f, isDir, id),
+        onLongPress: () => _onTileLongPress(f, isDir, id),
+      ),
+    );
+  }
+
+  /// 图标区：独立响应，恒为"切换选中"（design_skill 6.1/6.11）
+  Widget _buildIconSelectable(Widget leading, bool isSel, int id, ColorScheme cs) {
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () {
+              setState(() {
+                _selecting = true;
+                _toggleSelect(id);
+              });
+            },
+            child: SizedBox(width: 48, height: 48, child: Center(child: leading)),
+          ),
+          if (isSel)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Icon(Icons.check_circle, size: 18, color: cs.primary),
+            ),
+        ],
       ),
     );
   }
 
   /// 标签片行（design_skill 10.4：列表项名称/描述下方显示文件标签）
   Widget _buildTagChips(List<dynamic> tags) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Wrap(
       spacing: 4,
       runSpacing: 4,
       children: [
         for (final t in tags.take(4))
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (t['color'] != null && t['color'].toString().isNotEmpty) ...[
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: _colorOf(t['color']),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Text(
-                  t['name'].toString(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.onSecondaryContainer,
-                  ),
-                ),
-              ],
+          Chip(
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            backgroundColor: cs.secondaryContainer,
+            side: BorderSide.none,
+            avatar: (t['color'] != null && t['color'].toString().isNotEmpty)
+                ? CircleAvatar(
+                    radius: 4,
+                    backgroundColor: _colorOf(t['color']),
+                  )
+                : null,
+            label: Text(
+              t['name'].toString(),
+              style: textTheme.labelSmall?.copyWith(color: cs.onSecondaryContainer),
             ),
           ),
         if (tags.length > 4)
-          Text(
-            '+${tags.length - 4}',
-            style: TextStyle(
-              fontSize: 11,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '+${tags.length - 4}',
+              style: textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
             ),
           ),
       ],
@@ -1324,76 +1247,75 @@ class _LibraryPageState extends State<LibraryPage> {
     final isSel = _selected.contains(id);
     final tags = (f['tags'] as List?) ?? const [];
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onLongPress: () => _onTileLongPress(f, isDir, id),
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        color: isSel ? cs.primaryContainer : null,
-        child: InkWell(
-          onTap: () => _onTileTap(f, isDir, id),
-          // 百分比布局：预览图 ~50%，名称 ~20%，大小 ~12%，标签 ~18%
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              children: [
-                Expanded(
-                  flex: 50,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Center(
-                        child: _isImage(f['ext'])
-                            ? ThumbnailImage(path: (f['path'] ?? '').toString())
-                            : _isVideo(f['ext'])
-                                ? ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true)
-                                : Icon(isDir ? Icons.folder : _typeIcon(f['ext']),
-                                    size: 34, color: cs.onSurfaceVariant),
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      color: isSel ? cs.primaryContainer : null,
+      child: InkWell(
+        onTap: () => _onTileTap(f, isDir, id),
+        onLongPress: () => _onTileLongPress(f, isDir, id),
+        // 百分比布局：预览图 ~50%，名称 ~20%，大小 ~12%，标签 ~18%
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            children: [
+              Expanded(
+                flex: 50,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Center(
+                      child: _isImage(f['ext'])
+                          ? ThumbnailImage(path: (f['path'] ?? '').toString())
+                          : _isVideo(f['ext'])
+                              ? ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true)
+                              : Icon(isDir ? Icons.folder_outlined : _typeIcon(f['ext']),
+                                  size: 34, color: cs.onSurfaceVariant),
+                    ),
+                    if (isSel)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Icon(Icons.check_circle, color: cs.primary),
                       ),
-                      if (isSel)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Icon(Icons.check_circle, color: cs.primary),
-                        ),
-                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Expanded(
+                flex: 20,
+                child: Center(
+                  child: Text(
+                    f['name'].toString(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
                   ),
                 ),
+              ),
+              Expanded(
+                flex: 12,
+                child: Center(
+                  child: Text(
+                    (f['size'] ?? 0) > 0 ? _size(f['size']) : '',
+                    textAlign: TextAlign.center,
+                    style: textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ),
+              if (tags.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Expanded(
-                  flex: 20,
-                  child: Center(
-                    child: Text(
-                      f['name'].toString(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                    ),
+                  flex: 18,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: _buildTagChips(tags),
                   ),
                 ),
-                Expanded(
-                  flex: 12,
-                  child: Center(
-                    child: Text(
-                      (f['size'] ?? 0) > 0 ? _size(f['size']) : '',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
-                    ),
-                  ),
-                ),
-                if (tags.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Expanded(
-                    flex: 18,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: _buildTagChips(tags),
-                    ),
-                  ),
-                ],
               ],
-            ),
+            ],
           ),
         ),
       ),
@@ -1522,8 +1444,9 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildSelectionBar() {
-    return Container(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerHighest,
       child: SafeArea(
         child: Row(
           children: [
@@ -1535,7 +1458,12 @@ class _LibraryPageState extends State<LibraryPage> {
             IconButton(icon: const Icon(Icons.sell), tooltip: '移除标签', onPressed: _removeTagsFromSelected),
             IconButton(icon: const Icon(Icons.drive_file_move_outlined), tooltip: '移动', onPressed: () => _moveToFolder(_selected.toList())),
             IconButton(icon: const Icon(Icons.upload_outlined), tooltip: '导出', onPressed: () => _exportFiles(_selected.toList())),
-            IconButton(icon: const Icon(Icons.delete_outline), tooltip: '删除', onPressed: () => _deleteFiles(_selected.toList())),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: '删除',
+              color: cs.error,
+              onPressed: () => _deleteFiles(_selected.toList()),
+            ),
             IconButton(icon: const Icon(Icons.close), tooltip: '取消', onPressed: () => setState(() {
               _selecting = false;
               _selected.clear();
@@ -1741,7 +1669,7 @@ class _ThumbnailImageState extends State<ThumbnailImage> {
     }
     final j = widget.isVideo
         ? MediaNative().makeVideoThumbnailJson(widget.path, widget.maxSize.round())
-        : MediaNative().makeThumbnailJson(widget.path, widget.maxSize.round());
+        : FileService().makeImageThumbnail(widget.path, widget.maxSize.round());
     if (!mounted) return;
     if (j == null || (j['error'] as String? ?? '').isNotEmpty) {
       setState(() => _loading = false);
@@ -1821,7 +1749,8 @@ class _DashboardContent extends StatelessWidget {
     Widget row(String k, String v) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(k), Text(v, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(k),
+            Text(v, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
           ]),
         );
     return SingleChildScrollView(
@@ -1832,7 +1761,7 @@ class _DashboardContent extends StatelessWidget {
           row('目录数', '${s['dirs'] ?? 0}'),
           row('总大小', _size(s['size'])),
           const Divider(),
-          const Text('按类型', style: TextStyle(fontWeight: FontWeight.bold)),
+          Text('按类型', style: Theme.of(context).textTheme.titleSmall),
           row('图片', '${byType['image'] ?? 0}'),
           row('视频', '${byType['video'] ?? 0}'),
           row('音频', '${byType['audio'] ?? 0}'),
@@ -1840,7 +1769,7 @@ class _DashboardContent extends StatelessWidget {
           row('其他', '${byType['other'] ?? 0}'),
           if (byTag.isNotEmpty) ...[
             const Divider(),
-            const Text('按标签', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('按标签', style: Theme.of(context).textTheme.titleSmall),
             for (final t in byTag)
               row((t['name'] ?? '').toString(), '${t['count'] ?? 0}'),
           ],

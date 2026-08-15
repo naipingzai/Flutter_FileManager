@@ -39,10 +39,10 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('显示设置')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
           _presetCard(),
-          const SizedBox(height: 8),
+          const Divider(height: 24, indent: 16, endIndent: 16),
           _slider('字体大小', _s.font, (v) => _set((x) => x.font = v)),
           _slider('界面间距', _s.spacing, (v) => _set((x) => x.spacing = v)),
           _slider('列表项高度', _s.listItemHeight, (v) => _set((x) => x.listItemHeight = v)),
@@ -56,59 +56,62 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   }
 
   Widget _presetCard() {
-    return Card(
-      child: ListTile(
-        leading: Icon(Icons.dashboard_customize_outlined,
-            color: Theme.of(context).colorScheme.primary),
-        title: const Text('预设'),
-        subtitle: const Text('紧凑 / 默认 / 宽松'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () async {
-          final sel = await showDialog<String>(
-            context: context,
-            builder: (ctx) => SimpleDialog(
-              title: const Text('选择预设'),
-              children: [
-                for (final e in UiScale.presets.entries)
-                  SimpleDialogOption(
-                    onPressed: () => Navigator.pop(ctx, e.key),
-                    child: Text(e.key),
-                  ),
-              ],
-            ),
-          );
-          if (sel != null && UiScale.presets.containsKey(sel)) {
-            final p = UiScale.presets[sel]!;
-            _set((x) {
-              x.font = p;
-              x.spacing = p;
-              x.listItemHeight = p;
-              x.icon = p;
-              x.pageMargin = p;
-              x.dialogPadding = p;
-              x.buttonSpacing = p;
-            });
-          }
-        },
-      ),
+    final cs = Theme.of(context).colorScheme;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      leading: Icon(Icons.dashboard_customize_outlined, color: cs.onSurfaceVariant),
+      title: const Text('预设'),
+      subtitle: Text('紧凑 / 默认 / 宽松', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        final sel = await showDialog<String>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: const Text('选择预设'),
+            children: [
+              for (final e in UiScale.presets.entries)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, e.key),
+                  child: Text(e.key),
+                ),
+            ],
+          ),
+        );
+        if (sel != null && UiScale.presets.containsKey(sel)) {
+          final p = UiScale.presets[sel]!;
+          _set((x) {
+            x.font = p;
+            x.spacing = p;
+            x.listItemHeight = p;
+            x.icon = p;
+            x.pageMargin = p;
+            x.dialogPadding = p;
+            x.buttonSpacing = p;
+          });
+        }
+      },
     );
   }
 
   Widget _slider(String label, double value, ValueChanged<double> onChanged) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label),
-              Text(
-                '${(value * 100).round()}%',
-                style: TextStyle(color: Theme.of(context).colorScheme.primary),
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.bodyMedium),
+                Text(
+                  '${(value * 100).round()}%',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(color: cs.primary),
+                ),
+              ],
+            ),
           ),
           Slider(
             value: value.clamp(0.5, 2.0),

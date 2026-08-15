@@ -14,11 +14,20 @@ class _TagManagePageState extends State<TagManagePage> {
   final DatabaseService _db = DatabaseService();
   List<Map<String, dynamic>> _tags = [];
 
-  static const _colors = [
-    Colors.red, Colors.orange, Colors.amber, Colors.green,
-    Colors.teal, Colors.blue, Colors.indigo, Colors.purple,
-    Colors.pink, Colors.brown,
-  ];
+  // 标签可选颜色：从 colorScheme 派生（深浅色主题自适应），而非硬编码 Colors.*
+  List<Color> _colorOptions(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return [
+      cs.primary,
+      cs.secondary,
+      cs.tertiary,
+      cs.error,
+      cs.primaryContainer,
+      cs.secondaryContainer,
+      cs.tertiaryContainer,
+      cs.errorContainer,
+    ];
+  }
 
   @override
   void initState() {
@@ -42,6 +51,7 @@ class _TagManagePageState extends State<TagManagePage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('标签管理'),
@@ -59,12 +69,10 @@ class _TagManagePageState extends State<TagManagePage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.label_outline,
-                      size: 48,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      size: 48, color: cs.onSurfaceVariant),
                   const SizedBox(height: 12),
                   Text('暂无标签，点击右上角新建',
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
                   const SizedBox(height: 8),
                   FilledButton.tonalIcon(
                     onPressed: _createTag,
@@ -75,45 +83,54 @@ class _TagManagePageState extends State<TagManagePage> {
               ),
             )
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
                 for (final t in _tags)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        radius: 7,
-                        backgroundColor:
-                            _colorOf(t['color']) ??
-                            Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      title: Text(t['name'].toString()),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('${t['count'] ?? 0} 个',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant)),
-                          IconButton(
-                            icon: const Icon(Icons.more_vert, size: 20),
-                            onPressed: () => _tagMenu(t),
-                          ),
-                        ],
-                      ),
-                      onTap: () => _editTag(t),
+                  ListTile(
+                    leading: CircleAvatar(
+                      radius: 7,
+                      backgroundColor:
+                          _colorOf(t['color']) ?? cs.onSurfaceVariant,
                     ),
+                    title: Text(t['name'].toString()),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('${t['count'] ?? 0} 个',
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+                        IconButton(
+                          icon: const Icon(Icons.more_vert, size: 20),
+                          onPressed: () => _tagMenu(t),
+                        ),
+                      ],
+                    ),
+                    onTap: () => _editTag(t),
                   ),
               ],
             ),
     );
   }
 
+  Widget _colorPicker(Color chosen, ValueChanged<Color> onSelect) {
+    return Wrap(
+      spacing: 8,
+      children: [
+        for (final c in _colorOptions(context))
+          ChoiceChip(
+            avatar: CircleAvatar(radius: 8, backgroundColor: c),
+            label: const SizedBox.shrink(),
+            selected: chosen.toARGB32() == c.toARGB32(),
+            showCheckmark: false,
+            onSelected: (_) => onSelect(c),
+          ),
+      ],
+    );
+  }
+
   Future<void> _createTag() async {
     final ctrl = TextEditingController();
-    Color chosen = _colors.first;
+    final opts = _colorOptions(context);
+    Color chosen = opts.first;
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -124,28 +141,7 @@ class _TagManagePageState extends State<TagManagePage> {
             children: [
               TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '标签名')),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final c in _colors)
-                    InkWell(
-                      onTap: () => setDlg(() => chosen = c),
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: c,
-                          shape: BoxShape.circle,
-                          border: chosen == c
-                              ? Border.all(
-                                  color: Theme.of(context).colorScheme.onSurface,
-                                  width: 2)
-                              : null,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              _colorPicker(chosen, (c) => setDlg(() => chosen = c)),
             ],
           ),
           actions: [
@@ -166,7 +162,8 @@ class _TagManagePageState extends State<TagManagePage> {
 
   Future<void> _editTag(Map<String, dynamic> tag) async {
     final ctrl = TextEditingController(text: tag['name'].toString());
-    Color chosen = _colorOf(tag['color']) ?? _colors.first;
+    final opts = _colorOptions(context);
+    Color chosen = _colorOf(tag['color']) ?? opts.first;
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -177,28 +174,7 @@ class _TagManagePageState extends State<TagManagePage> {
             children: [
               TextField(controller: ctrl, autofocus: true),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final c in _colors)
-                    InkWell(
-                      onTap: () => setDlg(() => chosen = c),
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: c,
-                          shape: BoxShape.circle,
-                          border: chosen == c
-                              ? Border.all(
-                                  color: Theme.of(context).colorScheme.onSurface,
-                                  width: 2)
-                              : null,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              _colorPicker(chosen, (c) => setDlg(() => chosen = c)),
             ],
           ),
           actions: [

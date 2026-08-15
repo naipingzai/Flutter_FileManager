@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_file_manager/core/native/file_ffi.dart';
+import 'package:flutter_file_manager/core/native/media_ffi.dart';
 import 'package:flutter_file_manager/core/native/system_ffi.dart';
+import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/ui_scale.dart';
 import 'package:flutter_file_manager/core/theme/m3_theme.dart';
 import 'package:flutter_file_manager/features/library/library_page.dart';
@@ -12,7 +14,19 @@ const _permissionChannel = MethodChannel(
   'com.example.flutter_file_manager/permissions',
 );
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Android 上 C++ 的 app_data 依赖 $HOME 会落到根目录，无法写入。
+  // 用 path_provider 获取正确的应用私有目录并传给数据库。
+  if (SystemNative().osName == 'android') {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      DatabaseService.dataDirOverride = dir.path;
+      SystemNative.appDocumentsDir = dir.path;
+    } catch (_) {
+      // 失败则回退
+    }
+  }
   runApp(const FlutterFileManagerApp());
 }
 
@@ -21,10 +35,9 @@ class FlutterFileManagerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 触发 core 静态库的 FFI lookup，确保符号加载到进程。
-    // 真正使用 FileNative 的是 FileService（懒加载）。
+    // 触发 native 静态库的 FFI lookup，确保媒体解码符号加载到进程。
     // ignore: unused_local_variable
-    final core = FileNative();
+    final core = MediaNative();
 
     return MaterialApp(
       title: 'Flutter File Manager',
