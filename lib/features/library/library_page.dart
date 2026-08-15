@@ -476,18 +476,73 @@ class _LibraryPageState extends State<LibraryPage> {
       ),
       bottomNavigationBar: _selecting
           ? _buildSelectionBar()
-          : NavigationBar(
-              selectedIndex: _navIndex,
-              onDestinationSelected: (i) {
-                setState(() => _navIndex = i);
-                _load();
-              },
-              destinations: const [
-                NavigationDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder), label: '文件'),
-                NavigationDestination(icon: Icon(Icons.label_outline), selectedIcon: Icon(Icons.label), label: '标签'),
-                NavigationDestination(icon: Icon(Icons.more_horiz), label: '更多'),
-              ],
+          : _buildBottomNav(),
+    );
+  }
+
+  /// M3 悬浮底栏：圆角胶囊浮于内容之上，药丸形选中指示器 + 导航项。
+  Widget _buildBottomNav() {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Material(
+        elevation: 6,
+        shadowColor: cs.shadow,
+        color: cs.surfaceContainer,
+        surfaceTintColor: cs.surfaceTint,
+        borderRadius: BorderRadius.circular(28),
+        child: SizedBox(
+          height: 68,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _navDest(0, Icons.folder_outlined, Icons.folder, '文件'),
+              _navDest(1, Icons.label_outline, Icons.label, '标签'),
+              _navDest(2, Icons.more_horiz, Icons.more_horiz, '更多'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// M3 导航目的地（药丸形选中指示器）
+  Widget _navDest(int i, IconData icon, IconData selIcon, String label) {
+    final cs = Theme.of(context).colorScheme;
+    final sel = _navIndex == i;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        setState(() => _navIndex = i);
+        _load();
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+            decoration: BoxDecoration(
+              color: sel ? cs.secondaryContainer : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
             ),
+            child: Icon(
+              sel ? selIcon : icon,
+              color: sel ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: sel ? FontWeight.w600 : FontWeight.w500,
+              color: sel ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
