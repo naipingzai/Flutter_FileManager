@@ -129,27 +129,102 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
   }
 
   Widget _tagsTab() {
-    if (_tags.isEmpty) {
-      return const Center(child: Text('暂无标签'));
-    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final t in _tags)
-              Chip(
-                avatar: t['color'] != null
-                    ? CircleAvatar(radius: 5, backgroundColor: _colorOf(t['color']))
-                    : null,
-                label: Text(t['name'].toString()),
-              ),
-          ],
+        if (_tags.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Text('暂无标签'),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final t in _tags)
+                Chip(
+                  avatar: t['color'] != null
+                      ? CircleAvatar(radius: 5, backgroundColor: _colorOf(t['color']))
+                      : null,
+                  label: Text(t['name'].toString()),
+                ),
+            ],
+          ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.tonalIcon(
+            onPressed: _editTags,
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const Text('编辑标签'),
+          ),
         ),
       ],
     );
+  }
+
+  Future<void> _editTags() async {
+    final fileId = widget.file['id'] as int;
+    final allTags = _db.tags();
+    final current = _tags.map((t) => t['id'] as int).toSet();
+    final chosen = <int>{
+      for (final t in allTags)
+        if (current.contains(t['id'])) t['id'] as int,
+    };
+    final result = await showDialog<Set<int>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('编辑标签'),
+          content: SizedBox(
+            width: 300,
+            child: allTags.isEmpty
+                ? const Text('暂无标签，可先在标签管理新建。')
+                : Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final t in allTags)
+                        FilterChip(
+                          label: Text(t['name'].toString()),
+                          selected: chosen.contains(t['id']),
+                          onSelected: (sel) {
+                            setDlg(() {
+                              if (sel) {
+                                chosen.add(t['id'] as int);
+                              } else {
+                                chosen.remove(t['id']);
+                              }
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, chosen),
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null) return;
+    // 应用：先移除不再选中的，再添加新选中的
+    for (final t in _tags) {
+      if (!result.contains(t['id'])) {
+        _db.removeTagFromFile(fileId, t['id'] as int);
+      }
+    }
+    for (final id in result) {
+      if (!current.contains(id)) {
+        _db.addTagsToFiles([fileId], [id]);
+      }
+    }
+    setState(() => _tags = _db.fileTags(fileId));
   }
 
   Widget _hashTab() {
