@@ -483,23 +483,26 @@ class _LibraryPageState extends State<LibraryPage> {
   /// M3 悬浮底栏：圆角胶囊浮于内容之上，药丸形选中指示器 + 导航项。
   Widget _buildBottomNav() {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Material(
-        elevation: 6,
-        shadowColor: cs.shadow,
-        color: cs.surfaceContainer,
-        surfaceTintColor: cs.surfaceTint,
-        borderRadius: BorderRadius.circular(28),
-        child: SizedBox(
-          height: 68,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _navDest(0, Icons.folder_outlined, Icons.folder, '文件'),
-              _navDest(1, Icons.label_outline, Icons.label, '标签'),
-              _navDest(2, Icons.more_horiz, Icons.more_horiz, '更多'),
-            ],
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Material(
+          elevation: 6,
+          shadowColor: cs.shadow,
+          color: cs.surfaceContainer,
+          surfaceTintColor: cs.surfaceTint,
+          borderRadius: BorderRadius.circular(28),
+          child: SizedBox(
+            height: 68,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _navDest(0, Icons.folder_outlined, Icons.folder, '文件'),
+                _navDest(1, Icons.label_outline, Icons.label, '标签'),
+                _navDest(2, Icons.more_horiz, Icons.more_horiz, '更多'),
+              ],
+            ),
           ),
         ),
       ),
