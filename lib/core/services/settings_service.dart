@@ -105,6 +105,15 @@ class Settings {
   Future<void> setViewType(FileViewType value) async =>
       (await _prefs).setString(_keyViewType, value.name);
 
+  static const String _keyGridColumns = 'pref_grid_columns';
+  Future<int> getGridColumns() async {
+    final prefs = await _prefs;
+    return prefs.getInt(_keyGridColumns) ?? 0; // 0=按屏幕宽度自适应
+  }
+
+  Future<void> setGridColumns(int value) async =>
+      (await _prefs).setInt(_keyGridColumns, value);
+
   Future<FileSortOptions> getSortOptions() async {
     final prefs = await _prefs;
     final raw = prefs.getString(_keySortOptions);

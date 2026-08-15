@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/native/media_ffi.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
+import 'package:flutter_file_manager/core/services/settings_service.dart';
 import 'package:flutter_file_manager/features/viewer/audio/audio_player_page.dart';
 import 'package:flutter_file_manager/features/viewer/csv/csv_viewer_page.dart';
 import 'package:flutter_file_manager/features/viewer/ebook/ebook_viewer_page.dart';
@@ -41,13 +42,20 @@ class _LibraryPageState extends State<LibraryPage> {
   final TextEditingController _searchCtrl = TextEditingController();
 
   // 移动端布局：底部导航页 + 类型分类（类型≠标签）
-  int _navIndex = 0; // 0=文件库 1=标签 2=更多
+  int _navIndex = 0; // 0=文件 1=标签 2=更多
   String _category = '全部'; // 全部/图片/视频/音频/文档/压缩包/最近
+  int _gridColumns = 0; // 0=自适应；>0=固定列数（设置可配）
 
   @override
   void initState() {
     super.initState();
+    _loadGridColumns();
     _load();
+  }
+
+  Future<void> _loadGridColumns() async {
+    final c = await Settings().getGridColumns();
+    if (mounted) setState(() => _gridColumns = c);
   }
 
   @override
@@ -476,7 +484,7 @@ class _LibraryPageState extends State<LibraryPage> {
               selectedIndex: _navIndex,
               onDestinationSelected: (i) => setState(() => _navIndex = i),
               destinations: const [
-                NavigationDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder), label: '文件库'),
+                NavigationDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder), label: '文件'),
                 NavigationDestination(icon: Icon(Icons.label_outline), selectedIcon: Icon(Icons.label), label: '标签'),
                 NavigationDestination(icon: Icon(Icons.more_horiz), label: '更多'),
               ],
@@ -503,7 +511,7 @@ class _LibraryPageState extends State<LibraryPage> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         children: [
-          _crumb('文件库', () {
+          _crumb('文件', () {
             setState(() {
               _pathStack.clear();
               _currentParent = 0;
@@ -597,6 +605,7 @@ class _LibraryPageState extends State<LibraryPage> {
         _moreCard(Icons.create_new_folder, '导入文件夹', '递归导入整个文件夹', _importDir),
         _moreCard(Icons.folder_special, '新建目录', '在文件库内新建目录', _mkdir),
         _moreCard(Icons.bar_chart, '库统计', '查看文件数/大小/类型统计', _showDashboard),
+        _buildGridSettingCard(),
         const SizedBox(height: 24),
         Center(
           child: Text(
@@ -621,8 +630,48 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
+  Widget _buildGridSettingCard() {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(Icons.grid_view, color: Theme.of(context).colorScheme.primary),
+        title: const Text('网格视图列数', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(
+          _gridColumns == 0 ? '自动（按宽度）' : '固定 $_gridColumns 列',
+          style: const TextStyle(fontSize: 12),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _pickGridColumns(),
+      ),
+    );
+  }
+
+  Future<void> _pickGridColumns() async {
+    final sel = await showDialog<int>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('网格视图列数'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 0),
+            child: const Text('自动（按宽度）'),
+          ),
+          for (var i = 1; i <= 6; i++)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, i),
+              child: Text('$i 列'),
+            ),
+        ],
+      ),
+    );
+    if (sel != null) {
+      await Settings().setGridColumns(sel);
+      if (mounted) setState(() => _gridColumns = sel);
+    }
+  }
+
   String get _currentPathText {
-    if (_pathStack.isEmpty) return '文件库';
+    if (_pathStack.isEmpty) return '文件';
     return _pathStack.map((e) => e.name).join('/');
   }
 
@@ -685,13 +734,17 @@ class _LibraryPageState extends State<LibraryPage> {
       return const Center(child: Text('暂无内容，点右上角导入或新建目录'));
     }
     if (_grid) {
+      // 网格列数：设置里可配固定列数，否则按宽度自适应（每格约 120dp）
+      final crossCount = _gridColumns > 0
+          ? _gridColumns
+          : (MediaQuery.of(context).size.width / 120).floor().clamp(2, 8);
       return GridView.builder(
         padding: const EdgeInsets.all(8),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 140,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossCount,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
-          childAspectRatio: 0.9,
+          childAspectRatio: 0.85,
         ),
         itemCount: _files.length,
         itemBuilder: (ctx, i) => _buildGridTile(_files[i]),
@@ -756,21 +809,26 @@ class _LibraryPageState extends State<LibraryPage> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Card(
         margin: EdgeInsets.zero,
-        child: ListTile(
-          leading: leading,
-          title: Text(
-            f['name'].toString(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: 64, // 统一行高
+          child: ListTile(
+            leading: leading,
+            title: Text(
+              f['name'].toString(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15),
+            ),
+            subtitle: subtitle,
+            trailing: trailing,
+            selected: isSel,
+            onLongPress: () => setState(() {
+              _selecting = true;
+              _toggleSelect(id);
+            }),
+            onTap: () => _onTileTap(f, isDir, id),
           ),
-          subtitle: subtitle,
-          trailing: trailing,
-          selected: isSel,
-          onLongPress: () => setState(() {
-            _selecting = true;
-            _toggleSelect(id);
-          }),
-          onTap: () => _onTileTap(f, isDir, id),
         ),
       ),
     );
@@ -790,42 +848,54 @@ class _LibraryPageState extends State<LibraryPage> {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _onTileTap(f, isDir, id),
+          // 百分比布局：预览图 ~60%，名称 ~25%，大小 ~15%，比例协调，避免"大格子小内容"
           child: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Stack(
-                  children: [
-                    if (_isImage(f['ext']))
-                      SizedBox(
-                        width: 56,
-                        height: 52,
-                        child: ThumbnailImage(path: (f['path'] ?? '').toString()),
-                      )
-                    else if (_isVideo(f['ext']))
-                      SizedBox(
-                        width: 56,
-                        height: 52,
-                        child: ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true),
-                      )
-                    else
-                      Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 44, color: Colors.grey[700]),
-                    if (isSel)
-                      const Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Icon(Icons.check_circle, color: Colors.blue),
+                Expanded(
+                  flex: 60,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Center(
+                        child: _isImage(f['ext'])
+                            ? ThumbnailImage(path: (f['path'] ?? '').toString())
+                            : _isVideo(f['ext'])
+                                ? ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true)
+                                : Icon(isDir ? Icons.folder : _typeIcon(f['ext']),
+                                    size: 34, color: Colors.grey[700]),
                       ),
-                  ],
+                      if (isSel)
+                        const Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Icon(Icons.check_circle, color: Colors.blue),
+                        ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  f['name'].toString(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12),
+                const SizedBox(height: 4),
+                Expanded(
+                  flex: 25,
+                  child: Center(
+                    child: Text(
+                      f['name'].toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 15,
+                  child: Center(
+                    child: Text(
+                      (f['size'] ?? 0) > 0 ? _size(f['size']) : '',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    ),
+                  ),
                 ),
               ],
             ),
