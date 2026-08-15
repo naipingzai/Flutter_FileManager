@@ -50,8 +50,20 @@ char *db_move(int file_id, int new_parent_id);
 // 重命名库内文件/目录。
 char *db_rename(int file_id, const char *name);
 
-// 逻辑删除（deleted=1）。
+// 逻辑删除（deleted=1），进入回收站。
 char *db_delete(int file_id);
+
+// 列出回收站（deleted=1）文件。
+char *db_list_deleted(void);
+
+// 从回收站恢复文件。
+char *db_restore(int file_id);
+
+// 从回收站彻底删除单个文件。
+char *db_purge(int file_id);
+
+// 清空回收站：物理删除内部副本并移除记录。
+char *db_empty_trash(void);
 
 // 导出：把内部文件复制到 dest（系统位置）。返回 JSON：{"error":"","path":"..."}
 char *db_export_file(int file_id, const char *dest);

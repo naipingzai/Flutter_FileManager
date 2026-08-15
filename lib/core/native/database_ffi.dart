@@ -48,6 +48,19 @@ typedef DbRenameDart = Pointer<Utf8> Function(int, Pointer<Utf8>);
 typedef DbDeleteNative = Pointer<Utf8> Function(Int32);
 typedef DbDeleteDart = Pointer<Utf8> Function(int);
 
+// char* db_list_deleted(void)
+typedef DbListDeletedNative = Pointer<Utf8> Function();
+typedef DbListDeletedDart = Pointer<Utf8> Function();
+// char* db_restore(int file_id)
+typedef DbRestoreNative = Pointer<Utf8> Function(Int32);
+typedef DbRestoreDart = Pointer<Utf8> Function(int);
+// char* db_purge(int file_id)
+typedef DbPurgeNative = Pointer<Utf8> Function(Int32);
+typedef DbPurgeDart = Pointer<Utf8> Function(int);
+// char* db_empty_trash(void)
+typedef DbEmptyTrashNative = Pointer<Utf8> Function();
+typedef DbEmptyTrashDart = Pointer<Utf8> Function();
+
 // char* db_export_file(int file_id, const char* dest)
 typedef DbExportNative = Pointer<Utf8> Function(Int32, Pointer<Utf8>);
 typedef DbExportDart = Pointer<Utf8> Function(int, Pointer<Utf8>);
@@ -111,6 +124,10 @@ class DatabaseNative {
   late final DbMoveDart dbMove;
   late final DbRenameDart dbRename;
   late final DbDeleteDart dbDelete;
+  late final DbListDeletedDart dbListDeleted;
+  late final DbRestoreDart dbRestore;
+  late final DbPurgeDart dbPurge;
+  late final DbEmptyTrashDart dbEmptyTrash;
   late final DbExportDart dbExportFile;
   late final DbTagListDart dbTagList;
   late final DbTagCountsDart dbTagCounts;
@@ -146,6 +163,10 @@ class DatabaseNative {
     dbMove = _lib.lookupFunction<DbMoveNative, DbMoveDart>('db_move');
     dbRename = _lib.lookupFunction<DbRenameNative, DbRenameDart>('db_rename');
     dbDelete = _lib.lookupFunction<DbDeleteNative, DbDeleteDart>('db_delete');
+    dbListDeleted = _lib.lookupFunction<DbListDeletedNative, DbListDeletedDart>('db_list_deleted');
+    dbRestore = _lib.lookupFunction<DbRestoreNative, DbRestoreDart>('db_restore');
+    dbPurge = _lib.lookupFunction<DbPurgeNative, DbPurgeDart>('db_purge');
+    dbEmptyTrash = _lib.lookupFunction<DbEmptyTrashNative, DbEmptyTrashDart>('db_empty_trash');
     dbExportFile = _lib.lookupFunction<DbExportNative, DbExportDart>('db_export_file');
     dbTagList = _lib.lookupFunction<DbTagListNative, DbTagListDart>('db_tag_list');
     dbTagCounts = _lib.lookupFunction<DbTagCountsNative, DbTagCountsDart>('db_tag_counts');
@@ -260,6 +281,18 @@ class DatabaseNative {
   }
 
   String? delete(int fileId) => _err(_call(() => dbDelete(fileId)));
+
+  List<Map<String, dynamic>> listDeleted() {
+    final j = _call(() => dbListDeleted());
+    if (_err(j) != null) return [];
+    return ((j?['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+  }
+
+  String? restore(int fileId) => _err(_call(() => dbRestore(fileId)));
+
+  String? purge(int fileId) => _err(_call(() => dbPurge(fileId)));
+
+  String? emptyTrash() => _err(_call(() => dbEmptyTrash()));
 
   String? exportFile(int fileId, String dest) {
     final dp = dest.toNativeUtf8();

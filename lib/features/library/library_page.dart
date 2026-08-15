@@ -11,6 +11,7 @@ import 'package:flutter_file_manager/core/services/settings_service.dart';
 import 'package:flutter_file_manager/core/services/ui_scale.dart';
 import 'package:flutter_file_manager/features/legacy/about/about_page.dart';
 import 'package:flutter_file_manager/features/library/file_properties_dialog.dart';
+import 'package:flutter_file_manager/features/library/recycle_bin_page.dart';
 import 'package:flutter_file_manager/features/library/settings_page.dart';
 import 'package:flutter_file_manager/features/library/tag_manage_page.dart';
 import 'package:flutter_file_manager/features/library/tag_search_page.dart';
@@ -644,6 +645,9 @@ class _LibraryPageState extends State<LibraryPage> {
         (icon: Icons.label_outline, label: t['name'].toString(), onTap: () => _goTagFiles(t['id'] as int)),
     ];
     final menuActions = <({IconData icon, String label, void Function() onTap})>[
+      (icon: Icons.delete_outline, label: '回收站', onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const RecycleBinPage()));
+      }),
       (icon: Icons.label, label: '标签管理', onTap: () => _goTagManage()),
       (icon: Icons.settings_outlined, label: '设置', onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));

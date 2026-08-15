@@ -425,6 +425,35 @@ char *db_rename(int file_id, const char *name) {
 }
 
 char *db_delete(int file_id) {
+    // 逻辑删除（进入回收站）：保留内部文件以便恢复
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "UPDATE files SET deleted=1 WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, file_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
+    return strdup("{\"error\":\"\"}");
+}
+
+// 列出回收站（deleted=1）文件
+char *db_list_deleted(void) {
+    const char *sql =
+        "SELECT id,name,ext,mime,size,internal_path,source_path,source_type,is_dir,parent_id,import_time,deleted"
+        " FROM files WHERE deleted=1";
+    return query_files_json(sql, 0, 0);
+}
+
+// 从回收站恢复
+char *db_restore(int file_id) {
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db, "UPDATE files SET deleted=0 WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, file_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
+    return strdup("{\"error\":\"\"}");
+}
+
+// 从回收站彻底删除单个文件（物理删除内部副本 + 移除记录）
+char *db_purge(int file_id) {
     sqlite3_stmt *sel;
     std::string ipath;
     if (sqlite3_prepare_v2(g_db, "SELECT internal_path,is_dir FROM files WHERE id=?", -1, &sel, nullptr) == SQLITE_OK) {
@@ -440,9 +469,37 @@ char *db_delete(int file_id) {
         try { fs::remove(ipath); } catch (...) {}
     }
     sqlite3_stmt *st;
-    if (sqlite3_prepare_v2(g_db, "UPDATE files SET deleted=1 WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
-        sqlite3_bind_int64(st, 1, file_id);
-        sqlite3_step(st); sqlite3_finalize(st);
+    if (sqlite3_prepare_v2(g_db, "DELETE FROM file_tags WHERE file_id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, file_id); sqlite3_step(st); sqlite3_finalize(st);
+    }
+    if (sqlite3_prepare_v2(g_db, "DELETE FROM files WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(st, 1, file_id); sqlite3_step(st); sqlite3_finalize(st);
+    }
+    return strdup("{\"error\":\"\"}");
+}
+
+// 清空回收站：物理删除所有已删除文件的内部副本
+char *db_empty_trash(void) {
+    sqlite3_stmt *st;
+    if (sqlite3_prepare_v2(g_db,
+            "SELECT id,internal_path,is_dir FROM files WHERE deleted=1",
+            -1, &st, nullptr) == SQLITE_OK) {
+        while (sqlite3_step(st) == SQLITE_ROW) {
+            long long fid = sqlite3_column_int64(st, 0);
+            const unsigned char *p = sqlite3_column_text(st, 1);
+            int is_dir = sqlite3_column_int(st, 2);
+            if (p && !is_dir) {
+                try { fs::remove((const char*)p); } catch (...) {}
+            }
+            sqlite3_stmt *d;
+            if (sqlite3_prepare_v2(g_db, "DELETE FROM file_tags WHERE file_id=?", -1, &d, nullptr) == SQLITE_OK) {
+                sqlite3_bind_int64(d, 1, fid); sqlite3_step(d); sqlite3_finalize(d);
+            }
+            if (sqlite3_prepare_v2(g_db, "DELETE FROM files WHERE id=?", -1, &d, nullptr) == SQLITE_OK) {
+                sqlite3_bind_int64(d, 1, fid); sqlite3_step(d); sqlite3_finalize(d);
+            }
+        }
+        sqlite3_finalize(st);
     }
     return strdup("{\"error\":\"\"}");
 }
