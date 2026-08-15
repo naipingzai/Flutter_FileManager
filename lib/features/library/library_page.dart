@@ -389,6 +389,20 @@ class _LibraryPageState extends State<LibraryPage> {
     _load();
   }
 
+  /// 清除标签筛选，回到普通目录浏览
+  void _clearTagFilter() {
+    setState(() {
+      _filterTagId = null;
+      _currentParent = _pathStack.isEmpty ? 0 : _pathStack.last.id;
+      _category = '全部';
+      if (_searching) {
+        _searching = false;
+        _searchCtrl.clear();
+      }
+    });
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -425,6 +439,12 @@ class _LibraryPageState extends State<LibraryPage> {
             : null,
         actions: [
           if (_navIndex == 0) ...[
+            if (_filterTagId != null)
+              IconButton(
+                icon: const Icon(Icons.filter_alt_off),
+                tooltip: '清除标签筛选',
+                onPressed: _clearTagFilter,
+              ),
             IconButton(
               icon: Icon(_searching ? Icons.search_off : Icons.search),
               onPressed: () => setState(() {
@@ -515,6 +535,8 @@ class _LibraryPageState extends State<LibraryPage> {
             setState(() {
               _pathStack.clear();
               _currentParent = 0;
+              _filterTagId = null;
+              _category = '全部';
             });
             _load();
           }),
@@ -731,6 +753,22 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _buildFileList() {
     if (_files.isEmpty) {
+      if (_filterTagId != null) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.label_off_outlined, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              const Text('该标签下暂无文件'),
+              TextButton(
+                onPressed: _clearTagFilter,
+                child: const Text('清除筛选，查看全部'),
+              ),
+            ],
+          ),
+        );
+      }
       return const Center(child: Text('暂无内容，点右上角导入或新建目录'));
     }
     if (_grid) {
@@ -810,24 +848,44 @@ class _LibraryPageState extends State<LibraryPage> {
       child: Card(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
-        child: SizedBox(
-          height: 64, // 统一行高
-          child: ListTile(
-            leading: leading,
-            title: Text(
-              f['name'].toString(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 15),
+        color: isSel ? Theme.of(context).colorScheme.primaryContainer : null,
+        child: InkWell(
+          onTap: () => _onTileTap(f, isDir, id),
+          onLongPress: () => setState(() {
+            _selecting = true;
+            _toggleSelect(id);
+          }),
+          // 统一行高 64，内容上下左右居中
+          child: SizedBox(
+            height: 64,
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                Center(child: SizedBox(width: 48, height: 48, child: Center(child: leading))),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        f['name'].toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 15),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        subtitle,
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Center(child: trailing ?? const SizedBox(width: 48, height: 24)),
+                const SizedBox(width: 4),
+              ],
             ),
-            subtitle: subtitle,
-            trailing: trailing,
-            selected: isSel,
-            onLongPress: () => setState(() {
-              _selecting = true;
-              _toggleSelect(id);
-            }),
-            onTap: () => _onTileTap(f, isDir, id),
           ),
         ),
       ),
@@ -893,6 +951,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   child: Center(
                     child: Text(
                       (f['size'] ?? 0) > 0 ? _size(f['size']) : '',
+                      textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
                     ),
                   ),
