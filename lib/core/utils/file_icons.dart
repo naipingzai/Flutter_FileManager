@@ -34,24 +34,26 @@ class FileIcons {
     return Icons.insert_drive_file;
   }
 
-  static Color colorForEntry(FileEntry entry) {
-    if (entry.isDirectory) return Colors.amber;
-    if (entry.isSymlink) return Colors.teal;
+  /// 文件类型图标颜色 —— 全部取自 M3 色彩角色（ColorScheme），
+  /// 不使用 M2 硬编码色板，保证明暗主题下均有正确对比度。
+  static Color colorForEntry(FileEntry entry, ColorScheme scheme) {
+    if (entry.isDirectory) return scheme.tertiary;
+    if (entry.isSymlink) return scheme.secondary;
     final mime = entry.mimeType;
-    if (mime.startsWith('image/')) return Colors.purple;
-    if (mime.startsWith('video/')) return Colors.red;
-    if (mime.startsWith('audio/')) return Colors.pink;
-    if (mime == 'application/pdf') return Colors.redAccent;
+    if (mime.startsWith('image/')) return scheme.primary;
+    if (mime.startsWith('video/')) return scheme.tertiary;
+    if (mime.startsWith('audio/')) return scheme.secondary;
+    if (mime == 'application/pdf') return scheme.error;
     if (mime == 'application/zip' ||
         mime == 'application/x-rar-compressed' ||
         mime == 'application/x-7z-compressed' ||
         mime == 'application/x-tar' ||
         mime == 'application/gzip') {
-      return Colors.brown;
+      return scheme.onSecondaryContainer;
     }
-    if (mime.startsWith('text/')) return Colors.blue;
-    if (entry.name.endsWith('.apk')) return Colors.green;
-    if (mime == 'application/x-executable') return Colors.indigo;
-    return Colors.blueGrey;
+    if (mime.startsWith('text/')) return scheme.primaryContainer;
+    if (entry.name.endsWith('.apk')) return scheme.inversePrimary;
+    if (mime == 'application/x-executable') return scheme.onPrimaryContainer;
+    return scheme.onSurfaceVariant;
   }
 }

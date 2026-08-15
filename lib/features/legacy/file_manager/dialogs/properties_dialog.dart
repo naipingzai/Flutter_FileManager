@@ -17,7 +17,9 @@ class PropertiesDialog extends StatelessWidget {
         children: [
           Icon(
             entry.isDirectory ? Icons.folder : Icons.insert_drive_file,
-            color: entry.isDirectory ? Colors.amber : theme.colorScheme.primary,
+            color: entry.isDirectory
+                ? theme.colorScheme.tertiary
+                : theme.colorScheme.primary,
           ),
           const SizedBox(width: 8),
           Expanded(

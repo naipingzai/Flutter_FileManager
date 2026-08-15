@@ -419,11 +419,13 @@ class _FileManagerView extends StatelessWidget {
             ),
           ),
           if (state.bookmarks.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Text(
                 '暂无书签',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12),
               ),
             ),
           ...state.bookmarks.asMap().entries.map(
@@ -611,9 +613,10 @@ class _FileManagerView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error, size: 48, color: Colors.red),
+            Icon(Icons.error, size: 48, color: Theme.of(context).colorScheme.error),
             const SizedBox(height: 16),
-            Text(tab.error!, style: const TextStyle(color: Colors.red)),
+            Text(tab.error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: state.loadCurrentTab,
@@ -630,12 +633,14 @@ class _FileManagerView extends StatelessWidget {
             Icon(
               tab.isSearching ? Icons.search_off : Icons.folder_open,
               size: 64,
-              color: Colors.grey,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
             Text(
               tab.isSearching ? '无搜索结果' : '此目录为空',
-              style: const TextStyle(color: Colors.grey, fontSize: 16),
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 16),
             ),
           ],
         ),

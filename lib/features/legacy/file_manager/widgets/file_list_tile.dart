@@ -45,7 +45,7 @@ class FileListTile extends StatelessWidget {
                 children: [
                   Icon(
                     FileIcons.iconForEntry(entry),
-                    color: FileIcons.colorForEntry(entry),
+                    color: FileIcons.colorForEntry(entry, theme.colorScheme),
                     size: 24,
                   ),
                   if (entry.isSymlink)

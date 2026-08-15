@@ -78,16 +78,16 @@ class AboutPage extends StatelessWidget {
                     ),
                   ),
                   const Divider(),
-                  _feature('文件浏览 (列表/网格视图)'),
-                  _feature('面包屑导航 + 标签页'),
-                  _feature('文件操作 (新建/删除/重命名/复制/移动)'),
-                  _feature('文件搜索 (glob 模式)'),
-                  _feature('文件属性 (权限/所有者/类型)'),
-                  _feature('符号链接检测'),
-                  _feature('隐藏文件管理'),
-                  _feature('排序 (名称/大小/时间/类型)'),
-                  _feature('多选操作'),
-                  _feature('书签管理'),
+                  _feature(theme.colorScheme, '文件浏览 (列表/网格视图)'),
+                  _feature(theme.colorScheme, '面包屑导航 + 标签页'),
+                  _feature(theme.colorScheme, '文件操作 (新建/删除/重命名/复制/移动)'),
+                  _feature(theme.colorScheme, '文件搜索 (glob 模式)'),
+                  _feature(theme.colorScheme, '文件属性 (权限/所有者/类型)'),
+                  _feature(theme.colorScheme, '符号链接检测'),
+                  _feature(theme.colorScheme, '隐藏文件管理'),
+                  _feature(theme.colorScheme, '排序 (名称/大小/时间/类型)'),
+                  _feature(theme.colorScheme, '多选操作'),
+                  _feature(theme.colorScheme, '书签管理'),
                 ],
               ),
             ),
@@ -128,12 +128,12 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _feature(String text) {
+  Widget _feature(ColorScheme scheme, String text) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, size: 16, color: Colors.green),
+          Icon(Icons.check_circle, size: 16, color: scheme.tertiary),
           const SizedBox(width: 8),
           Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
         ],

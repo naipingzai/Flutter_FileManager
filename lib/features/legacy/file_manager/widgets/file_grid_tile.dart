@@ -49,7 +49,7 @@ class FileGridTile extends StatelessWidget {
                   child: Icon(
                     FileIcons.iconForEntry(entry),
                     size: 40,
-                    color: FileIcons.colorForEntry(entry),
+                    color: FileIcons.colorForEntry(entry, theme.colorScheme),
                   ),
                 ),
               ),
@@ -66,7 +66,7 @@ class FileGridTile extends StatelessWidget {
                     child: Icon(
                       FileIcons.iconForEntry(entry),
                       size: 20,
-                      color: FileIcons.colorForEntry(entry),
+                      color: FileIcons.colorForEntry(entry, theme.colorScheme),
                     ),
                   ),
                   const SizedBox(width: 8),

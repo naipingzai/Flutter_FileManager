@@ -139,7 +139,7 @@ class _SearchPageState extends State<SearchPage> {
           const Divider(),
           Expanded(
             child: _results.isEmpty
-                ? Center(child: Text(_searching ? '搜索中...' : '输入搜索模式并点击搜索', style: const TextStyle(color: Colors.grey)))
+                ? Center(child: Text(_searching ? '搜索中...' : '输入搜索模式并点击搜索', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)))
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
