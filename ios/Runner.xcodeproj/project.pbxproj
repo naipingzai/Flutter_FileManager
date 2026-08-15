@@ -246,6 +246,7 @@
 			);
 			name = "Build Native Core/Media";
 			outputPaths = (
+				"$(SRCROOT)/../build/native/ios/libflutter_native.a",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

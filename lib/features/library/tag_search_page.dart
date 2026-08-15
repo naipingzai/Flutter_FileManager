@@ -42,8 +42,11 @@ class _TagSearchPageState extends State<TagSearchPage> {
         return _selectedTags.every(ids.contains);
       }).toList();
     }
-    files.sort((a, b) => ((b['importTime'] ?? 0) as int)
-        .compareTo((a['importTime'] ?? 0) as int));
+    files.sort(
+      (a, b) => ((b['importTime'] ?? 0) as int).compareTo(
+        (a['importTime'] ?? 0) as int,
+      ),
+    );
     setState(() => _results = files);
   }
 
@@ -81,8 +84,12 @@ class _TagSearchPageState extends State<TagSearchPage> {
             child: _tags.isEmpty
                 ? Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('暂无标签',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                    child: Text(
+                      '暂无标签',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                   )
                 : ListView(
                     scrollDirection: Axis.horizontal,
@@ -121,7 +128,9 @@ class _TagSearchPageState extends State<TagSearchPage> {
                 ? Center(
                     child: Text(
                       '未找到匹配文件',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   )
                 : ListView.builder(
@@ -166,21 +175,25 @@ class _TagSearchPageState extends State<TagSearchPage> {
                     visualDensity: VisualDensity.compact,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.secondaryContainer,
                     side: BorderSide.none,
                     label: Text(
                       t['name'].toString(),
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSecondaryContainer,
-                          ),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSecondaryContainer,
+                      ),
                     ),
                   ),
                 if (tags.length > 4)
                   Text(
                     '+${tags.length - 4}',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
               ],
             ),
@@ -221,8 +234,8 @@ class _TagSearchPageState extends State<TagSearchPage> {
 
   void _openFile(Map<String, dynamic> f) {
     // 目前仅展示；预览查看器在 LibraryPage 中实现，这里占位提示
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('打开文件（查看器待接）')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('打开文件（查看器待接）')));
   }
 }

@@ -38,7 +38,13 @@ CMAKE_ARGS=(
 )
 
 if [[ "$PLATFORM" == "ios" ]]; then
-    CMAKE_ARGS+=(-DCMAKE_SYSTEM_NAME=iOS)
+    # iOS 交叉编译必须用 Xcode 生成器 + iphoneos SDK（CMAKE_SYSTEM_NAME=iOS 不能配 Makefiles）
+    CMAKE_ARGS+=(
+        -DCMAKE_SYSTEM_NAME=iOS
+        -DCMAKE_OSX_SYSROOT=iphoneos
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+        -G Xcode
+    )
 fi
 
 echo "[native] CMake 配置 ($PLATFORM/$ARCH)..."
