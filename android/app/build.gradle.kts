@@ -19,8 +19,9 @@ android {
         applicationId = "com.naipingzai.flutter_file_manager"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        // 只支持 Android 15 (API 35) 及以上，旧系统不再支持
+        minSdk = 35
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 

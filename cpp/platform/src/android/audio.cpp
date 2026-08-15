@@ -2,22 +2,16 @@
  * media - Android 音频输出（AAudio）— 平台层实现
  * 播放 media 库解码出的 S16 交错 PCM 数据
  *
- * AAudio 自 Android 26 (O) 引入。当前 minSdk 为 24，
- * 因此用 __ANDROID_API__ 保护：API >= 26 走 AAudio，
- * 更低版本返回不支持（音频优雅降级，不崩溃、不编译报错）。
+ * minSdk 为 35 (Android 15)，AAudio (API 26+) 始终可用，无需降级分支。
  */
 
-#include <android/api-level.h>
+#include <aaudio/AAudio.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "media.h"
-
-#if defined(__ANDROID_API__) && __ANDROID_API__ >= 26
-
-#include <aaudio/AAudio.h>
 
 typedef struct {
     AAudioStream* stream;
@@ -79,21 +73,3 @@ extern "C" void media_audio_output_close(void* handle) {
     }
     free(a);
 }
-
-#else // __ANDROID_API__ < 26：AAudio 不可用，音频输出优雅降级
-
-extern "C" void* media_audio_output_open(int sample_rate, int channels, int bits) {
-    (void)sample_rate; (void)channels; (void)bits;
-    return nullptr; // 低于 Android 8.0 不支持 AAudio
-}
-
-extern "C" int media_audio_output_write(void* handle, const unsigned char* pcm, int len) {
-    (void)handle; (void)pcm; (void)len;
-    return -1;
-}
-
-extern "C" void media_audio_output_stop(void* handle) { (void)handle; }
-
-extern "C" void media_audio_output_close(void* handle) { (void)handle; }
-
-#endif
