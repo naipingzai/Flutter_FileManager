@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_file_manager/core/native/file_ffi.dart';
 import 'package:flutter_file_manager/core/native/system_ffi.dart';
+import 'package:flutter_file_manager/core/theme/m3_theme.dart';
 import 'package:flutter_file_manager/features/library/library_page.dart';
 
 const _permissionChannel = MethodChannel(
@@ -27,16 +28,8 @@ class FlutterFileManagerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter File Manager',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.blue,
-        useMaterial3: true,
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: Colors.blue,
-        useMaterial3: true,
-        brightness: Brightness.dark,
-      ),
+      theme: M3Theme.light(),
+      darkTheme: M3Theme.dark(),
       themeMode: ThemeMode.system,
       home: const PermissionWrapper(),
     );

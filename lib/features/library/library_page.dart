@@ -595,12 +595,12 @@ class _LibraryPageState extends State<LibraryPage> {
           Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
-              leading: CircleAvatar(radius: 6, backgroundColor: _colorOf(t['color']) ?? Colors.grey),
+              leading: CircleAvatar(radius: 6, backgroundColor: _colorOf(t['color']) ?? Theme.of(context).colorScheme.onSurfaceVariant),
               title: Text(t['name'].toString()),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('${t['count'] ?? 0} 个', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  Text('${t['count'] ?? 0} 个', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   IconButton(icon: const Icon(Icons.more_vert, size: 18), onPressed: () => _tagMenu(t)),
                 ],
               ),
@@ -632,7 +632,7 @@ class _LibraryPageState extends State<LibraryPage> {
         Center(
           child: Text(
             '导入式文件管理 · 数据库 + 标签系统',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ),
       ],
@@ -758,7 +758,7 @@ class _LibraryPageState extends State<LibraryPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.label_off_outlined, size: 48, color: Colors.grey.shade400),
+              Icon(Icons.label_off_outlined, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(height: 12),
               const Text('该标签下暂无文件'),
               TextButton(
@@ -803,7 +803,7 @@ class _LibraryPageState extends State<LibraryPage> {
         : null;
     final trailing = _selecting || isSel
         ? Icon(isSel ? Icons.check_circle : Icons.circle_outlined,
-            color: isSel ? Colors.blue : Colors.grey)
+            color: isSel ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant)
         : (!isDir
             ? IconButton(
                 icon: const Icon(Icons.more_vert),
@@ -814,7 +814,7 @@ class _LibraryPageState extends State<LibraryPage> {
     // 左侧：图片预览图 / 视频封面（方框），其余为类型图标
     Widget leading;
     if (isDir) {
-      leading = Icon(Icons.folder, size: 36, color: Colors.grey[700]);
+      leading = Icon(Icons.folder, size: 36, color: Theme.of(context).colorScheme.onSurfaceVariant);
     } else if (_isImage(f['ext'])) {
       leading = ClipRRect(
         borderRadius: BorderRadius.circular(4),
@@ -840,7 +840,7 @@ class _LibraryPageState extends State<LibraryPage> {
         ),
       );
     } else {
-      leading = Icon(_typeIcon(f['ext']), size: 32, color: Colors.grey[600]);
+      leading = Icon(_typeIcon(f['ext']), size: 32, color: Theme.of(context).colorScheme.onSurfaceVariant);
     }
 
     return Padding(
@@ -922,13 +922,13 @@ class _LibraryPageState extends State<LibraryPage> {
                             : _isVideo(f['ext'])
                                 ? ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true)
                                 : Icon(isDir ? Icons.folder : _typeIcon(f['ext']),
-                                    size: 34, color: Colors.grey[700]),
+                                    size: 34, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                       if (isSel)
-                        const Positioned(
+                        Positioned(
                           right: 0,
                           top: 0,
-                          child: Icon(Icons.check_circle, color: Colors.blue),
+                          child: Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
                         ),
                     ],
                   ),
@@ -952,7 +952,7 @@ class _LibraryPageState extends State<LibraryPage> {
                     child: Text(
                       (f['size'] ?? 0) > 0 ? _size(f['size']) : '',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   ),
                 ),
@@ -1336,7 +1336,7 @@ class _ThumbnailImageState extends State<ThumbnailImage> {
       return const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)));
     }
     if (_image == null) {
-      return Center(child: Icon(Icons.broken_image_outlined, color: Colors.grey[600], size: 28));
+      return Center(child: Icon(Icons.broken_image_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 28));
     }
     return RawImage(image: _image, fit: BoxFit.cover);
   }

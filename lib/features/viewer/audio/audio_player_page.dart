@@ -240,7 +240,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                       const SizedBox(height: 16),
                       Text(_errorMsg),
                       const SizedBox(height: 8),
-                      ElevatedButton(
+                      FilledButton(
                         onPressed: _decodeAndInit,
                         child: const Text('重试'),
                       ),
