@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_file_manager/core/native/media_ffi.dart';
 import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
 
 /// 文件属性对话框（design_skill 14.1，多页签）
-/// 页签：基本属性（恒显示）/ 标签（恒显示）/ 校验和（恒显示）
+/// 页签：基本/标签/校验和（恒显示）+ 按类型动态追加 图片/视频/音频 信息页签
 class FilePropertiesDialog extends StatefulWidget {
   final Map<String, dynamic> file;
   const FilePropertiesDialog({super.key, required this.file});
@@ -13,18 +14,46 @@ class FilePropertiesDialog extends StatefulWidget {
   State<FilePropertiesDialog> createState() => _FilePropertiesDialogState();
 }
 
-class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
+class _FilePropertiesDialogState extends State<FilePropertiesDialog>
+    with SingleTickerProviderStateMixin {
   final DatabaseService _db = DatabaseService();
+  final MediaNative _media = MediaNative();
+  late final TabController _tab;
   List<Map<String, dynamic>> _tags = [];
   Map<String, String> _hashes = {};
+  Map<String, String>? _imgInfo;
+  Map<String, String>? _videoInfo;
+  bool _loadingMedia = true;
 
   String get _path => (widget.file['path'] ?? '').toString();
+
+  bool get _isImage => _isExt({'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff', 'ico'});
+  bool get _isVideo => _isExt({'mp4', 'mkv', 'mov', 'webm', 'avi', 'flv', '3gp', 'm4v'});
+  bool get _isAudio => _isExt({'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'opus'});
+
+  bool _isExt(Set<String> exts) {
+    final e = ((widget.file['ext'] ?? '') as String).toLowerCase();
+    return exts.contains(e);
+  }
 
   @override
   void initState() {
     super.initState();
     _tags = _db.fileTags(widget.file['id'] as int);
     _computeHashes();
+    // 基础页签：基本/标签/校验和
+    int extra = 0;
+    if (_isImage) extra++;
+    if (_isVideo) extra++;
+    if (_isAudio) extra++;
+    _tab = TabController(length: 3 + extra, vsync: this);
+    if (extra > 0) _loadMediaInfo();
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
   }
 
   Future<void> _computeHashes() async {
@@ -43,6 +72,34 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
     });
   }
 
+  Future<void> _loadMediaInfo() async {
+    try {
+      if (_isImage) {
+        final img = FileService().decodeImage(_path);
+        if (img != null && mounted) {
+          _imgInfo = {
+            '尺寸': '${img.width} × ${img.height} px',
+          };
+        }
+      }
+      if (_isVideo) {
+        final h = _media.openVideo(_path);
+        if (h != null) {
+          final info = _media.getVideoInfo(h);
+          _media.closeVideo(h);
+          if (info != null && mounted) {
+            _videoInfo = {
+              '尺寸': '${info['width']} × ${info['height']} px',
+              '时长': '${(info['duration'] ?? 0).toStringAsFixed(2)} s',
+              '帧率': '${(info['fps'] ?? 0).toStringAsFixed(1)} fps',
+            };
+          }
+        }
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loadingMedia = false);
+  }
+
   String _size(dynamic v) {
     final n = (v is int) ? v : (v?.toInt() ?? 0);
     if (n < 1024) return '$n B';
@@ -54,41 +111,43 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
   @override
   Widget build(BuildContext context) {
     final f = widget.file;
+    final baseTabs = const [Tab(text: '基本'), Tab(text: '标签'), Tab(text: '校验和')];
+    final extraTabs = <Widget>[
+      if (_isImage) const Tab(text: '图片'),
+      if (_isVideo) const Tab(text: '视频'),
+      if (_isAudio) const Tab(text: '音频'),
+    ];
+    final views = <Widget>[
+      _basicTab(f),
+      _tagsTab(),
+      _hashTab(),
+      if (_isImage) _mediaInfoTab(_imgInfo),
+      if (_isVideo) _mediaInfoTab(_videoInfo),
+      if (_isAudio) _mediaInfoTab(null, audio: true),
+    ];
     return Dialog(
       child: SizedBox(
         width: 380,
         height: 480,
-        child: DefaultTabController(
-          length: 3,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Text(
-                  f['name'].toString(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text(
+                f['name'].toString(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              const TabBar(
-                tabs: [
-                  Tab(text: '基本'),
-                  Tab(text: '标签'),
-                  Tab(text: '校验和'),
-                ],
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _basicTab(f),
-                    _tagsTab(),
-                    _hashTab(),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+            TabBar(
+              controller: _tab,
+              tabs: [...baseTabs, ...extraTabs],
+            ),
+            Expanded(
+              child: TabBarView(controller: _tab, children: views),
+            ),
+          ],
         ),
       ),
     );
@@ -106,10 +165,7 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
-          Expanded(
-            child: Text(v,
-                style: const TextStyle(fontWeight: FontWeight.w500)),
-          ),
+          Expanded(child: Text(v, style: const TextStyle(fontWeight: FontWeight.w500))),
         ],
       ),
     );
@@ -212,8 +268,7 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
         ),
       ),
     );
-    if (result == null) return;
-    // 应用：先移除不再选中的，再添加新选中的
+    if (result == null || !mounted) return;
     for (final t in _tags) {
       if (!result.contains(t['id'])) {
         _db.removeTagFromFile(fileId, t['id'] as int);
@@ -256,12 +311,29 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
                 IconButton(
                   icon: const Icon(Icons.copy, size: 18),
                   tooltip: '复制',
-                  onPressed: () =>
-                      Clipboard.setData(ClipboardData(text: e.value)),
+                  onPressed: () => Clipboard.setData(ClipboardData(text: e.value)),
                 ),
               ],
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _mediaInfoTab(Map<String, String>? info, {bool audio = false}) {
+    if (_loadingMedia) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (info == null || info.isEmpty) {
+      return const Center(child: Text('无可用信息'));
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (audio)
+          _row('时长', '音频时长请用播放器查看')
+        else
+          for (final e in info.entries) _row(e.key, e.value),
       ],
     );
   }
