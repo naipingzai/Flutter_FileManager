@@ -7,6 +7,7 @@ import 'package:flutter_file_manager/features/viewer/pdf/pdf_viewer_page.dart';
 import 'package:flutter_file_manager/features/viewer/text/text_editor_page.dart';
 import 'package:flutter_file_manager/features/viewer/video/video_player_page.dart';
 
+import 'package:flutter_file_manager/core/services/database_service.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -126,6 +127,11 @@ class _FileManagerView extends StatelessWidget {
             icon: const Icon(Icons.deselect),
             onPressed: state.clearSelection,
             tooltip: '取消选择',
+          ),
+          IconButton(
+            icon: const Icon(Icons.library_add_outlined),
+            onPressed: () => _importSelectedToLibrary(context, state),
+            tooltip: '导入到文件库',
           ),
           IconButton(
             icon: const Icon(Icons.delete),
@@ -1033,5 +1039,25 @@ class _FileManagerView extends StatelessWidget {
         .where((e) => state.currentTab.selectedPaths.contains(e.path))
         .toList();
     _confirmDelete(context, state, selected);
+  }
+
+  void _importSelectedToLibrary(BuildContext context, FileManagerState state) {
+    final selected = state.currentTab.entries
+        .where((e) => state.currentTab.selectedPaths.contains(e.path) && e.isFile)
+        .toList();
+    if (selected.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('没有可导入的文件')));
+      return;
+    }
+    final db = DatabaseService();
+    int ok = 0;
+    for (final e in selected) {
+      if (db.importFile(e.path) != null) ok++;
+    }
+    state.clearSelection();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已导入 $ok/${selected.length} 个文件到文件库')),
+    );
   }
 }
