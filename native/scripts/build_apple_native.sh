@@ -26,10 +26,6 @@ BUILD_DIR="${REPO_ROOT}/build/native/${PLATFORM}"
 ARCH="${2:-arm64}"
 TP_DIR="${REPO_ROOT}/native/third_party/${PLATFORM}"
 
-# 每次全量构建模块，避免 CMake 缓存跨平台残留
-rm -rf "${BUILD_DIR}"
-mkdir -p "${BUILD_DIR}"
-
 CMAKE_ARGS=(
     -S "${CPP_DIR}"
     -B "${BUILD_DIR}"
@@ -47,8 +43,15 @@ if [[ "$PLATFORM" == "ios" ]]; then
     )
 fi
 
-echo "[native] CMake 配置 ($PLATFORM/$ARCH)..."
-cmake "${CMAKE_ARGS[@]}"
+# 增量构建：若已存在 CMake 缓存则复用（避免 Xcode 脚本阶段二次运行时清掉已产出的库）
+if [[ ! -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
+    rm -rf "${BUILD_DIR}"
+    mkdir -p "${BUILD_DIR}"
+    echo "[native] CMake 配置 ($PLATFORM/$ARCH)..."
+    cmake "${CMAKE_ARGS[@]}"
+else
+    echo "[native] 复用已有 CMake 缓存 ($PLATFORM/$ARCH)"
+fi
 
 echo "[native] 编译模块..."
 cmake --build "${BUILD_DIR}" --config Release --parallel
@@ -59,11 +62,9 @@ cmake --build "${BUILD_DIR}" --config Release --parallel
 OUT_A="${BUILD_DIR}/libflutter_native.a"
 rm -f "${OUT_A}"
 
-# 模块静态库统一输出到 ${BUILD_DIR}/lib/（见 cpp/CMakeLists.txt，单一 libnative.a）
+# 模块静态库（Xcode 生成器可能放到带 config 的子目录，递归查找）
 MODULE_LIBS=""
-if [[ -f "${BUILD_DIR}/lib/libnative.a" ]]; then
-    MODULE_LIBS="${BUILD_DIR}/lib/libnative.a"
-fi
+MODULE_LIBS=$(find "${BUILD_DIR}" -name "libnative.a" 2>/dev/null | head -1)
 
 # 第三方预编译静态库：${TP_DIR}/lib
 TP_LIBS=""

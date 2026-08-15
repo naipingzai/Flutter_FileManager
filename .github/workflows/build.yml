@@ -194,6 +194,11 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Build iOS native library
+        run: |
+          sh native/scripts/build_ios_native.sh
+          ls -lh build/native/ios/libflutter_native.a
+
       - name: Build iOS (release, 不签名)
         env:
           CODE_SIGNING_ALLOWED: "NO"
@@ -250,7 +255,12 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      # 原生模块构建在 Xcode Runner 的 "Build Native" 构建阶段执行
+      - name: Build macOS native library
+        run: |
+          sh native/scripts/build_macos_native.sh
+          ls -lh build/native/macos/libflutter_native.a
+
+      # 原生模块由上面的显式步骤产出；Xcode Runner 的 "Build Native" 阶段会增量复用
       - name: Build macOS release
         run: flutter build macos --release
 

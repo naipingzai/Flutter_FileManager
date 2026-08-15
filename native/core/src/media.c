@@ -686,8 +686,12 @@ static int media_video_next_frame_rgba_internal(MediaCtx *m,
                     recv_ret = avcodec_receive_frame(m->codec_ctx, frame_out);
                     continue;
                 }
-                int scaled = sws_scale(m->sws_ctx, frame_out->data, frame_out->linesize,
-                              0, h, dst_data, dst_linesize);
+                int scaled = sws_scale(m->sws_ctx,
+                              (const uint8_t *const *)frame_out->data,
+                              frame_out->linesize,
+                              0, h,
+                              (uint8_t *const *)dst_data,
+                              dst_linesize);
                 if (scaled <= 0) {
                     av_freep(&dst_data[0]);
                     recv_ret = avcodec_receive_frame(m->codec_ctx, frame_out);
