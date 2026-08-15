@@ -779,7 +779,7 @@ class _LibraryPageState extends State<LibraryPage> {
           ? _gridColumns
           : (MediaQuery.of(context).size.width / 120).floor().clamp(2, 8);
       return GridView.builder(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(16),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossCount,
           mainAxisSpacing: 8,
@@ -846,7 +846,7 @@ class _LibraryPageState extends State<LibraryPage> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Card(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
@@ -910,7 +910,7 @@ class _LibraryPageState extends State<LibraryPage> {
           onTap: () => _onTileTap(f, isDir, id),
           // 百分比布局：预览图 ~60%，名称 ~25%，大小 ~15%，比例协调，避免"大格子小内容"
           child: Padding(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(8),
             child: Column(
               children: [
                 Expanded(
