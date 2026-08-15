@@ -25,6 +25,13 @@ CPP_DIR="${REPO_ROOT}/native"
 BUILD_DIR="${REPO_ROOT}/build/native/${PLATFORM}"
 ARCH="${2:-arm64}"
 TP_DIR="${REPO_ROOT}/native/third_party/${PLATFORM}"
+OUT_A="${BUILD_DIR}/libflutter_native.a"
+
+# 若产物已存在且非空则直接复用（Xcode 脚本阶段二次运行时避免重复构建/清空）
+if [[ -s "${OUT_A}" ]]; then
+    echo "[native] 产物已存在，跳过构建: ${OUT_A}"
+    exit 0
+fi
 
 CMAKE_ARGS=(
     -S "${CPP_DIR}"
@@ -59,7 +66,6 @@ cmake --build "${BUILD_DIR}" --config Release --parallel
 # ============================================================
 # 合并所有模块 .a + 第三方 .a 为单一 libflutter_native.a
 # ============================================================
-OUT_A="${BUILD_DIR}/libflutter_native.a"
 rm -f "${OUT_A}"
 
 # 模块静态库（Xcode 生成器可能放到带 config 的子目录，递归查找）
