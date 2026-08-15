@@ -429,10 +429,12 @@ class _LibraryPageState extends State<LibraryPage> {
             ),
             IconButton(
               icon: Icon(_grid ? Icons.view_list : Icons.grid_view),
+              tooltip: _grid ? '列表视图' : '网格视图',
               onPressed: () => setState(() => _grid = !_grid),
             ),
             PopupMenuButton<_SortMode>(
               icon: const Icon(Icons.sort),
+              tooltip: '排序',
               onSelected: (m) => setState(() {
                 _sort = m;
                 _sortFiles();
@@ -441,6 +443,20 @@ class _LibraryPageState extends State<LibraryPage> {
                 CheckedPopupMenuItem(value: _SortMode.name, child: Text('按名称')),
                 CheckedPopupMenuItem(value: _SortMode.size, child: Text('按大小')),
                 CheckedPopupMenuItem(value: _SortMode.time, child: Text('按导入时间')),
+              ],
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.add),
+              tooltip: '导入',
+              onSelected: (v) {
+                if (v == 'file') _import();
+                if (v == 'dir') _importDir();
+                if (v == 'mkdir') _mkdir();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'file', child: Text('导入文件')),
+                PopupMenuItem(value: 'dir', child: Text('导入文件夹')),
+                PopupMenuItem(value: 'mkdir', child: Text('新建目录')),
               ],
             ),
           ],
@@ -454,12 +470,6 @@ class _LibraryPageState extends State<LibraryPage> {
           _buildMoreTab(),
         ],
       ),
-      floatingActionButton: _navIndex == 0 && !_selecting
-          ? FloatingActionButton(
-              onPressed: _import,
-              child: const Icon(Icons.add),
-            )
-          : null,
       bottomNavigationBar: _selecting
           ? _buildSelectionBar()
           : NavigationBar(
@@ -475,39 +485,54 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildLibraryTab() {
+    // 主页 = 目录结构：面包屑 + 文件列表（不显示标签/类型分类）
     return Column(
       children: [
-        _buildCategoryBar(),
-        _buildTagBar(),
+        _buildBreadcrumb(),
         const SizedBox(height: 4),
         Expanded(child: _buildFileList()),
       ],
     );
   }
 
-  /// 类型分类（类型≠标签）
-  Widget _buildCategoryBar() {
-    const cats = ['全部', '图片', '视频', '音频', '文档', '压缩包', '最近'];
+  /// 面包屑路径导航（参考 AdvanceFileManager）
+  Widget _buildBreadcrumb() {
     return SizedBox(
-      height: 48,
+      height: 40,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         children: [
-          for (final c in cats)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(c),
-                selected: _category == c,
-                onSelected: (_) => setState(() {
-                  _category = c;
-                  _filterTagId = null;
-                  _load();
-                }),
-              ),
-            ),
+          _crumb('文件库', () {
+            setState(() {
+              _pathStack.clear();
+              _currentParent = 0;
+            });
+            _load();
+          }),
+          for (var i = 0; i < _pathStack.length; i++)
+            _crumb(_pathStack[i].name, () {
+              setState(() {
+                _pathStack.removeRange(i + 1, _pathStack.length);
+                _currentParent = _pathStack[i].id;
+              });
+              _load();
+            }),
         ],
+      ),
+    );
+  }
+
+  Widget _crumb(String name, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Align(
+        alignment: Alignment.center,
+        child: ActionChip(
+          avatar: const Icon(Icons.chevron_right, size: 16),
+          label: Text(name, style: const TextStyle(fontSize: 12)),
+          onPressed: onTap,
+        ),
       ),
     );
   }
@@ -607,47 +632,6 @@ class _LibraryPageState extends State<LibraryPage> {
       if (t['id'] == id) return t['name'].toString();
     }
     return '?';
-  }
-
-  Widget _buildTagBar() {
-    return SizedBox(
-      height: 56,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        children: [
-          _tagChip(null, '全部', _filterTagId == null),
-          for (final t in _tags) _tagChip(t['id'], t['name'], _filterTagId == t['id'], tag: t),
-        ],
-      ),
-    );
-  }
-
-  Widget _tagChip(dynamic id, String name, bool selected, {Map<String, dynamic>? tag}) {
-    final color = _colorOf(tag?['color']);
-    final count = tag?['count'];
-    final label = count != null ? '$name($count)' : name;
-    final chip = ChoiceChip(
-      avatar: color != null ? CircleAvatar(backgroundColor: color, radius: 6) : null,
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) {
-        setState(() {
-          _filterTagId = id as int?;
-          _currentParent = 0;
-          _pathStack.clear();
-        });
-        _load();
-      },
-    );
-    if (tag == null) return Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: chip);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: GestureDetector(
-        onLongPress: () => _tagMenu(tag),
-        child: chip,
-      ),
-    );
   }
 
   Future<void> _tagMenu(Map<String, dynamic> tag) async {
