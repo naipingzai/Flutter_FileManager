@@ -10,6 +10,8 @@ import 'package:flutter_file_manager/core/services/file_service.dart';
 import 'package:flutter_file_manager/core/services/settings_service.dart';
 import 'package:flutter_file_manager/features/legacy/about/about_page.dart';
 import 'package:flutter_file_manager/features/library/settings_page.dart';
+import 'package:flutter_file_manager/features/library/tag_manage_page.dart';
+import 'package:flutter_file_manager/features/library/tag_search_page.dart';
 import 'package:flutter_file_manager/features/viewer/audio/audio_player_page.dart';
 import 'package:flutter_file_manager/features/viewer/csv/csv_viewer_page.dart';
 import 'package:flutter_file_manager/features/viewer/ebook/ebook_viewer_page.dart';
@@ -740,17 +742,17 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   void _goTagManage() {
-    setState(() => _navIndex = 1);
-    _load();
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TagManagePage()),
+    );
   }
 
   void _openTagSearch() {
-    setState(() {
-      _navIndex = 0;
-      _filterTagId = null;
-      _recentOnly = false;
-      _searching = true;
-    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TagSearchPage()),
+    );
   }
 
   void _openSettings() {

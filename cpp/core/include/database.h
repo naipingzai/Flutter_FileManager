@@ -65,6 +65,9 @@ char *db_tag_counts(void);
 // 重命名标签。
 char *db_tag_rename(int tag_id, const char *name);
 
+// 设置标签颜色。
+char *db_tag_set_color(int tag_id, const char *color);
+
 // 新建标签。返回标签 JSON。
 char *db_tag_create(const char *name, const char *color);
 

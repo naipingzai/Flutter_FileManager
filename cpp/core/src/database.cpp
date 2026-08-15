@@ -482,6 +482,16 @@ char *db_tag_rename(int tag_id, const char *name) {
     return strdup("{\"error\":\"\"}");
 }
 
+char *db_tag_set_color(int tag_id, const char *color) {
+    sqlite3_stmt *st;
+    if (color && sqlite3_prepare_v2(g_db, "UPDATE tags SET color=? WHERE id=?", -1, &st, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, color, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(st, 2, tag_id);
+        sqlite3_step(st); sqlite3_finalize(st);
+    }
+    return strdup("{\"error\":\"\"}");
+}
+
 char *db_tag_counts(void) {
     JsonBuilder jb = jb_new();
     jb_append_str(&jb, "{\"error\":\"\",\"items\":[");

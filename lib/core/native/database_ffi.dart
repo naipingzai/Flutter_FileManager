@@ -67,6 +67,9 @@ typedef DbTagRenameDart = Pointer<Utf8> Function(int, Pointer<Utf8>);
 // char* db_tag_create(const char* name, const char* color)
 typedef DbTagCreateNative = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
 typedef DbTagCreateDart = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
+// char* db_tag_set_color(int tag_id, const char* color)
+typedef DbTagColorNative = Pointer<Utf8> Function(Int32, Pointer<Utf8>);
+typedef DbTagColorDart = Pointer<Utf8> Function(int, Pointer<Utf8>);
 
 // char* db_tag_add_to_files(const char* file_ids, const char* tag_ids)
 typedef DbTagAddNative = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
@@ -113,6 +116,7 @@ class DatabaseNative {
   late final DbTagCountsDart dbTagCounts;
   late final DbTagRenameDart dbTagRename;
   late final DbTagCreateDart dbTagCreate;
+  late final DbTagColorDart dbTagColor;
   late final DbTagAddDart dbTagAddToFiles;
   late final DbTagRemoveDart dbTagRemoveFromFile;
   late final DbTagDeleteDart dbTagDelete;
@@ -147,6 +151,7 @@ class DatabaseNative {
     dbTagCounts = _lib.lookupFunction<DbTagCountsNative, DbTagCountsDart>('db_tag_counts');
     dbTagRename = _lib.lookupFunction<DbTagRenameNative, DbTagRenameDart>('db_tag_rename');
     dbTagCreate = _lib.lookupFunction<DbTagCreateNative, DbTagCreateDart>('db_tag_create');
+    dbTagColor = _lib.lookupFunction<DbTagColorNative, DbTagColorDart>('db_tag_set_color');
     dbTagAddToFiles =
         _lib.lookupFunction<DbTagAddNative, DbTagAddDart>('db_tag_add_to_files');
     dbTagRemoveFromFile =
@@ -283,6 +288,15 @@ class DatabaseNative {
       return _err(_call(() => dbTagRename(tagId, np)));
     } finally {
       malloc.free(np);
+    }
+  }
+
+  String? tagColor(int tagId, String color) {
+    final cp = color.toNativeUtf8();
+    try {
+      return _err(_call(() => dbTagColor(tagId, cp)));
+    } finally {
+      malloc.free(cp);
     }
   }
 
