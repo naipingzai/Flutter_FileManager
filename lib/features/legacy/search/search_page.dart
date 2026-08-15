@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
-import 'package:flutter_file_manager/features/file_manager/file_manager_state.dart';
-import '../viewer/audio/audio_player_page.dart';
-import '../viewer/csv/csv_viewer_page.dart';
-import '../viewer/ebook/ebook_viewer_page.dart';
-import '../viewer/image/image_viewer_page.dart';
-import '../viewer/pdf/pdf_viewer_page.dart';
-import '../viewer/text/text_editor_page.dart';
-import '../viewer/video/video_player_page.dart';
+import 'package:flutter_file_manager/features/legacy/file_manager/file_manager_state.dart';
+import '../../viewer/audio/audio_player_page.dart';
+import '../../viewer/csv/csv_viewer_page.dart';
+import '../../viewer/ebook/ebook_viewer_page.dart';
+import '../../viewer/image/image_viewer_page.dart';
+import '../../viewer/pdf/pdf_viewer_page.dart';
+import '../../viewer/text/text_editor_page.dart';
+import '../../viewer/video/video_player_page.dart';
 
 class SearchPage extends StatefulWidget {
   final FileManagerState state;

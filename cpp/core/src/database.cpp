@@ -285,7 +285,8 @@ static int import_one(const char *src, const char *default_tags) {
     if (sqlite3_step(st) != SQLITE_DONE) { sqlite3_finalize(st); return 0; }
     long long fid = last_insert_id();
     sqlite3_finalize(st);
-    // 默认标签
+    // 标签仅来自调用方显式传入的 default_tags（用户自定义名），
+    // 不自动按文件类型打标签（类型是类型，不是标签）。
     auto link_tag = [&](const std::string &tname) {
         long long tid = ensure_tag(tname.c_str());
         if (tid <= 0) return;
@@ -295,7 +296,6 @@ static int import_one(const char *src, const char *default_tags) {
             sqlite3_step(ft); sqlite3_finalize(ft);
         }
     };
-    link_tag(default_tag_for_ext(ext));
     if (default_tags && *default_tags) {
         for (auto &t : split_csv(default_tags)) if (!t.empty()) link_tag(t);
     }

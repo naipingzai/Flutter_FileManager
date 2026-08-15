@@ -556,25 +556,9 @@ class _LibraryPageState extends State<LibraryPage> {
     final id = f['id'] as int;
     final isDir = (f['isDir'] ?? 0) == 1;
     final isSel = _selected.contains(id);
-    final tags = (f['tags'] as List?) ?? [];
-    final subtitle = Wrap(
-      spacing: 4,
-      runSpacing: 2,
-      children: [
-        if ((f['size'] ?? 0) > 0)
-          Text(_size(f['size']), style: const TextStyle(fontSize: 11)),
-        for (final t in tags)
-          Chip(
-            avatar: _colorOf(t['color']) != null
-                ? CircleAvatar(backgroundColor: _colorOf(t['color']), radius: 5)
-                : null,
-            label: Text(t['name'].toString()),
-            labelStyle: const TextStyle(fontSize: 11),
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-      ],
-    );
+    final subtitle = (f['size'] ?? 0) > 0
+        ? Text(_size(f['size']), style: const TextStyle(fontSize: 12))
+        : null;
     final trailing = _selecting || isSel
         ? Icon(isSel ? Icons.check_circle : Icons.circle_outlined,
             color: isSel ? Colors.blue : Colors.grey)
@@ -585,9 +569,45 @@ class _LibraryPageState extends State<LibraryPage> {
               )
             : null);
 
+    // 左侧：图片预览图 / 视频封面（方框），其余为类型图标
+    Widget leading;
+    if (isDir) {
+      leading = Icon(Icons.folder, size: 36, color: Colors.grey[700]);
+    } else if (_isImage(f['ext'])) {
+      leading = ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: 48,
+          height: 44,
+          child: ThumbnailImage(path: (f['path'] ?? '').toString()),
+        ),
+      );
+    } else if (_isVideo(f['ext'])) {
+      leading = ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: 48,
+          height: 44,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ThumbnailImage(path: (f['path'] ?? '').toString(), isVideo: true),
+              const Center(child: Icon(Icons.play_circle_outline, color: Colors.white, size: 20)),
+            ],
+          ),
+        ),
+      );
+    } else {
+      leading = Icon(_typeIcon(f['ext']), size: 32, color: Colors.grey[600]);
+    }
+
     return ListTile(
-      leading: Icon(isDir ? Icons.folder : _typeIcon(f['ext']), size: 32),
-      title: Text(f['name'].toString()),
+      leading: leading,
+      title: Text(
+        f['name'].toString(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       subtitle: subtitle,
       trailing: trailing,
       selected: isSel,
@@ -603,7 +623,6 @@ class _LibraryPageState extends State<LibraryPage> {
     final id = f['id'] as int;
     final isDir = (f['isDir'] ?? 0) == 1;
     final isSel = _selected.contains(id);
-    final tags = (f['tags'] as List?) ?? [];
     return InkWell(
       onLongPress: () => setState(() {
         _selecting = true;
@@ -653,23 +672,6 @@ class _LibraryPageState extends State<LibraryPage> {
                 style: const TextStyle(fontSize: 12),
               ),
             ),
-            if (tags.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (final t in tags.take(3))
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 1),
-                        child: CircleAvatar(
-                          radius: 3,
-                          backgroundColor: _colorOf(t['color']) ?? Colors.grey,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),

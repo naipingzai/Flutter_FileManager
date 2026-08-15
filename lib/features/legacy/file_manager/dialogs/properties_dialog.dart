@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
-import 'package:flutter_file_manager/features/file_manager/file_manager_state.dart';
+import 'package:flutter_file_manager/features/legacy/file_manager/file_manager_state.dart';
 import 'package:flutter_file_manager/core/utils/formatters.dart';
 
 class PropertiesDialog extends StatelessWidget {

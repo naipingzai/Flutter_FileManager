@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_file_manager/core/native/system_ffi.dart';
-import 'package:flutter_file_manager/features/file_manager/file_manager_state.dart';
+import 'package:flutter_file_manager/features/legacy/file_manager/file_manager_state.dart';
 import 'package:flutter_file_manager/core/services/file_service.dart';
 
 class SettingsPage extends StatefulWidget {

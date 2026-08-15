@@ -261,11 +261,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     seconds = seconds.clamp(0.0, _duration > 0 ? _duration : seconds);
     final fs = FileService();
     fs.seekVideo(_handle!, seconds);
-    // 同步音频游标到对应位置，并对新起点做淡入（避免拖动反复 stop/restart 爆破音）
+    // 同步音频游标到对应位置（对齐帧边界，避免 S16 交错错位导致杂音）
     if (_audioPcm != null && _audioSampleRate > 0 && _audioChannels > 0) {
-      _audioPos = (seconds * _audioSampleRate * _audioChannels * 2).round();
-      if (_audioPos > _audioPcm!.length) _audioPos = _audioPcm!.length;
-      _audioRampBytes = _audioSampleRate * _audioChannels * 2 ~/ 100; // ~10ms
+      final frameBytes = _audioChannels * 2;
+      var pos = (seconds * _audioSampleRate * _audioChannels * 2).round();
+      pos -= pos % frameBytes; // 对齐到帧边界
+      if (pos > _audioPcm!.length) pos = _audioPcm!.length;
+      _audioPos = pos;
+      _audioRampBytes = frameBytes * 10; // 前 10 帧线性淡入，消爆破音
     }
     setState(() {
       _currentTime = seconds;
